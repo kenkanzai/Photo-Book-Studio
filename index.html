@@ -1130,7 +1130,7 @@ function renderShelf(){
     body=`<div class="covers">${b.map(bk=>{const{W,H}=SIZES[bk.size];const sc=Math.min(170/W,240/H);return`<div class="book-card"><button class="card-art" data-open="${bk.id}" aria-label="Open ${esc(bookName(bk))}"><div class="art">${boxHTML(bk,bk.pages[0],sc,'thumb')}</div></button><div class="card-meta" data-meta="${bk.id}"><div class="name-row"><b>${esc(bookName(bk))}</b><button class="ren" data-rename="${bk.id}" aria-label="Rename ${esc(bookName(bk))}" title="Rename"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 3.5l3 3L7 16H4v-3z"/></svg></button></div><span>${bk.pages.length-1} pages · ${esc(SIZES[bk.size].dim)}</span></div></div>`}).join('')}</div>`;
   }
   app().innerHTML=`<header class="top"><div class="brand"><span class="brand-mark" aria-hidden="true"></span>Photobook Studio</div>
-    <button class="btn ghost small" data-act="restore">Open backup</button><button class="btn primary" data-act="new">New book</button></header>
+    <button class="btn ghost small" data-act="backup">Backup</button><button class="btn primary" data-act="new">New book</button></header>
     <main class="shelf-wrap"><div class="shelf-head"><div><h1>Your shelf</h1><p>Trips, birthdays and anniversaries, made into books you can print.</p></div>
     ${b.length?`<div class="seg" role="group" aria-label="Shelf view"><button data-mode="covers" aria-pressed="${S.shelfMode==='covers'}">Covers</button><button data-mode="spines" aria-pressed="${S.shelfMode==='spines'}">Spines</button></div>`:''}</div>${body}</main>`;
 }
@@ -1392,7 +1392,7 @@ function openBookSettings(){
     <div class="field"><label class="lbl" for="bs-name">Book name</label><input class="inp" id="bs-name" data-bname value="${esc(bookName(bk))}" maxlength="80"><span class="hint">The name on your shelf. The cover title doesn't change.</span></div>
     <div class="field"><span class="lbl">Book size</span><div class="chips">${Object.entries(SIZES).map(([k,v])=>`<button class="chip" data-bsize="${k}" aria-pressed="${bk.size===k}">${v.label} ${v.dim}</button>`).join('')}</div><span class="hint">Changing size keeps your photos and words; layouts adjust.</span></div>
     <div class="field"><span class="lbl">Book type</span><div class="chips">${Object.entries(TYPES).map(([k,v])=>`<button class="chip" data-btype="${k}" aria-pressed="${bk.type===k}">${v.label}</button>`).join('')}</div><span class="hint">Changes how the spine text is written.</span></div>
-    <div class="field"><span class="lbl">Backup</span><span class="hint">Save this book with its photos as one file, locked with a password if you like. Open it on your phone or laptop with “Open backup” on the shelf.</span><div><button class="btn small" data-backup>Save backup file</button></div></div>
+    <div class="field"><span class="lbl">Backup</span><span class="hint">Save this book with its photos as one file, locked with a password if you like. Open it on your phone or laptop with Backup → “Open backup file” on the shelf.</span><div><button class="btn small" data-backup>Save backup file</button></div></div>
     <div class="field"><span class="lbl">Delete</span><div><button class="btn small danger" data-del>Delete this book</button></div></div>
   </div></div>`;
   document.body.appendChild(m);
@@ -1410,7 +1410,15 @@ async function deleteBook(bk){const cur=await store.get('books',bk.id);if(cur&&!
 
 /* ========== Backup ========== */
 let _dl;function dlCap(){if(_dl!==undefined)return Promise.resolve(_dl);if(!(window.claude&&window.claude.use))return Promise.resolve(_dl=null);return window.claude.use('downloads').then(d=>_dl=d||null).catch(()=>_dl=null)}
-async function downloadBlob(blob,name){const d=await dlCap();if(d){if(name.endsWith('.pbook'))name=name.replace(/\.pbook$/,'.json');try{await d.save({filename:name,data:blob})}catch(e){if(e&&e.code!=='declined')toast('This file could not be saved here.')}return}plainDownload(blob,name)}
+async function downloadBlob(blob,name){if(window.AndroidFiles){const c=await nativeSave(blob,name);if(c===-1)toast('This file could not be saved.');return c===1}const d=await dlCap();if(d){if(name.endsWith('.pbook'))name=name.replace(/\.pbook$/,'.json');try{await d.save({filename:name,data:blob})}catch(e){if(e&&e.code!=='declined')toast('This file could not be saved here.')}return}plainDownload(blob,name)}
+/* Android app: hand the file to the phone's own Save window */
+function nativeSave(blob,name){return new Promise(async res=>{const A=window.AndroidFiles;window.__afDone=c=>res(c);
+  try{A.begin(name,blob.type||'application/octet-stream');const CH=393216;
+    for(let o=0;o<blob.size;o+=CH){const b=new Uint8Array(await blob.slice(o,o+CH).arrayBuffer());let t='';for(let i=0;i<b.length;i+=8192)t+=String.fromCharCode.apply(null,b.subarray(i,i+8192));if(!A.append(btoa(t)))return res(-1)}
+    A.end()}catch(e){res(-1)}})}
+/* Android back button: close the top window, else go back to the shelf */
+window.__appBack=function(){const ms=document.querySelectorAll('.modal,.pv');const m=ms[ms.length-1];if(m){const x=m.querySelector('[data-x],[data-x2]');if(x)x.click();else m.remove();return true}
+  const sh=document.querySelector('header.top [data-act="shelf"]');if(sh){sh.click();return true}return false};
 function plainDownload(blob,name){const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000)}
 const safeName=s=>(String(s||'photobook').replace(/[^\w\- ]+/g,'').trim().replace(/\s+/g,'-')||'photobook');
 /* Password-locked backups: AES-GCM 256, key from the password with PBKDF2-SHA256 (310,000 rounds) */
@@ -1432,28 +1440,74 @@ function askPassword(title,mode){return new Promise(res=>{const m=document.creat
   const ok=()=>{const a=$('#pw1',m).value;if(mode==='set'){const b=$('#pw2',m).value;if(a.length<6)return $('#pw-err',m).textContent='Use at least 6 characters.';if(a!==b)return $('#pw-err',m).textContent='The two passwords are different.'}else if(!a)return;done(a)};
   m.addEventListener('click',e=>{if(e.target===m||e.target.closest('[data-x]'))done(null);if(e.target.closest('[data-nopw]'))done('');if(e.target.closest('[data-ok]'))ok()});
   m.addEventListener('keydown',e=>{if(e.key==='Enter')ok();if(e.key==='Escape')done(null)})})}
+async function bookBlob(bk,pw){
+  const photos=[];for(const id of bk.photoIds||[]){const r=await store.get('photos',id);const f=await store.get('full',id);if(r)photos.push({...r,full:f?f.data:r.med})}
+  const json=JSON.stringify({app:'photobook-studio',v:1,book:bk,photos});
+  return pw?lockBlob(json,pw):new Blob([json],{type:'application/json'})}
+async function shareOrSave(blob,name,title){
+  const file=new File([blob],name,{type:'application/json'});
+  if(!window.AndroidFiles&&narrow()&&navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title});return true}catch(e){if(e.name==='AbortError')return false}}
+  return downloadBlob(blob,name)}
 async function saveBackup(bk){
   const pw=await askPassword('Save backup file','set');if(pw===null)return;
   toast('Preparing backup…');await saveBook();
-  const photos=[];for(const id of bk.photoIds||[]){const r=await store.get('photos',id);const f=await store.get('full',id);if(r)photos.push({...r,full:f?f.data:r.med})}
-  const json=JSON.stringify({app:'photobook-studio',v:1,book:bk,photos});
-  let blob;try{blob=pw?await lockBlob(json,pw):new Blob([json],{type:'application/json'})}catch(e){toast('Could not lock the backup in this browser.');return}
-  const name=safeName(bk.title)+'.pbook';
-  const file=new File([blob],name,{type:'application/json'});
-  if(narrow()&&navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:bk.title});return}catch(e){if(e.name==='AbortError')return}}
-  downloadBlob(blob,name);toast(pw?'Locked backup saved.':'Backup saved.');
+  let blob;try{blob=await bookBlob(bk,pw)}catch(e){toast('Could not lock the backup in this browser.');return}
+  if(await shareOrSave(blob,safeName(bk.title)+'.pbook',bk.title)!==false)toast(pw?'Locked backup saved.':'Backup saved.');
+}
+/* All books in one file: "PBSMULTI1", then for each book its size (8 bytes) and its normal backup file */
+const MULTI=new TextEncoder().encode('PBSMULTI1');
+function u64(n){const b=new Uint8Array(8);const v=new DataView(b.buffer);v.setUint32(0,Math.floor(n/4294967296));v.setUint32(4,n>>>0);return b}
+async function saveAllBackup(){
+  const all=(await store.all('books')).filter(b=>!b.deleted);if(!all.length){toast('There are no books to back up yet.');return}
+  const pw=await askPassword('Back up all books','set');if(pw===null)return;
+  const parts=[MULTI];
+  try{for(let i=0;i<all.length;i++){toast(`Preparing book ${i+1} of ${all.length}…`);const b=await bookBlob(all[i],pw);parts.push(u64(b.size),b)}}catch(e){toast('Could not lock the backup in this browser.');return}
+  const d=new Date(),name=`Photobook-backup-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.pbook`;
+  if(await shareOrSave(new Blob(parts,{type:'application/octet-stream'}),name,'Photobook backup')!==false)toast(`Backup saved: ${all.length} book${all.length>1?'s':''}.`);
+}
+function openBackupWin(){
+  const m=document.createElement('div');m.className='modal';
+  m.innerHTML=`<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="bk-h"><div class="dlg-h"><h2 id="bk-h">Backup</h2><button class="icon-btn" data-x aria-label="Close">×</button></div><div class="dlg-b">
+    <p class="note" style="margin-top:0">Your books are kept only on this device. Save a backup before you delete the app or change phones.</p>
+    <div class="field"><span class="lbl">Save</span><span class="hint">All books and their photos in one file. Keep it in Google Drive or on your computer.</span><div><button class="btn primary small" data-ball>Back up all books</button></div></div>
+    <div class="field"><span class="lbl">Restore</span><span class="hint">Open a backup file to put its books back on your shelf.</span><div><button class="btn small" data-bopen>Open backup file</button></div></div>
+  </div></div>`;
+  document.body.appendChild(m);const close=()=>m.remove();
+  m.addEventListener('click',e=>{
+    if(e.target===m||e.target.closest('[data-x]'))return close();
+    if(e.target.closest('[data-ball]')){close();saveAllBackup();return}
+    if(e.target.closest('[data-bopen]')){close();const f=$('#file-backup');f.value='';f.onchange=()=>f.files[0]&&restoreBackup(f.files[0]);f.click()}
+  });
+  m.querySelector('[data-x]').focus();
+}
+async function restoreOne(buf,ctx){
+  let txt;
+  if(isLocked(buf)){let ok=false;if(ctx.pw){try{txt=await unlockBuf(buf,ctx.pw);ok=true}catch(e){}}
+    while(!ok){const pw=await askPassword('Open locked backup','get');if(pw===null)return 'stop';try{txt=await unlockBuf(buf,pw);ctx.pw=pw;ok=true}catch(e){toast('Wrong password. Try again.')}}}
+  else txt=new TextDecoder().decode(buf);
+  const data=JSON.parse(txt);if(data.app!=='photobook-studio'||!data.book)throw new Error('format');
+  const bk=data.book;const old=await store.get('books',bk.id);
+  if(old&&!old.deleted&&ctx.skipSame&&(old.updated||0)>=(bk.updated||0))return 'same';
+  let photos=data.photos||[];
+  if(old){/* a copy: give the book and its photos new ids so the two books never share photos */
+    const map={};photos.forEach(p=>map[p.id]=uid());let js=JSON.stringify(bk);for(const k in map)js=js.split('"'+k+'"').join('"'+map[k]+'"');
+    Object.assign(bk,JSON.parse(js));bk.id=uid();photos=photos.map(p=>({...p,id:map[p.id]}))}
+  for(const p of photos){const{full,...rec}=p;rec.bookId=bk.id;await store.put('photos',rec);await store.put('full',{id:p.id,data:full||p.med});photoMeta.set(p.id,rec)}
+  bk.updated=Date.now();await store.put('books',bk);ctx.added.push(bk.title||'Untitled');return 'added';
 }
 async function restoreBackup(file){
+  const ctx={pw:null,added:[],same:0,skipSame:false};
   try{
-    const buf=await file.arrayBuffer();let txt;
-    if(isLocked(buf)){for(;;){const pw=await askPassword('Open locked backup','get');if(pw===null)return;try{txt=await unlockBuf(buf,pw);break}catch(e){toast('Wrong password. Try again.')}}}
-    else txt=new TextDecoder().decode(buf);
-    const data=JSON.parse(txt);if(data.app!=='photobook-studio'||!data.book)throw new Error('format');
-    toast('Opening backup…');
-    const bk=data.book;const old=await store.get('books',bk.id);if(old)bk.id=uid();
-    for(const p of data.photos||[]){const{full,...rec}=p;rec.bookId=bk.id;await store.put('photos',rec);await store.put('full',{id:p.id,data:full||p.med});photoMeta.set(p.id,rec)}
-    bk.updated=Date.now();await store.put('books',bk);await showShelf();toast(`“${bk.title}” added to your shelf.`);
-  }catch(e){toast(e&&e.name==='QuotaExceededError'?'Storage is full. Delete a book first.':'This file is not a Photobook Studio backup.')}
+    const head=new Uint8Array(await file.slice(0,MULTI.length).arrayBuffer());
+    if(MULTI.every((b,k)=>head[k]===b)){
+      ctx.skipSame=true;let o=MULTI.length,n=0;toast('Opening backup…');
+      while(o+8<=file.size){const v=new DataView(await file.slice(o,o+8).arrayBuffer());const len=v.getUint32(0)*4294967296+v.getUint32(4);o+=8;
+        const r=await restoreOne(await file.slice(o,o+len).arrayBuffer(),ctx);o+=len;n++;if(r==='stop')break;if(r==='same')ctx.same++}
+    }else{toast('Opening backup…');if(await restoreOne(await file.arrayBuffer(),ctx)==='stop')return}
+    await showShelf();
+    const a=ctx.added.length;
+    toast(a===1&&!ctx.same?`“${ctx.added[0]}” added to your shelf.`:a?`${a} book${a>1?'s':''} added to your shelf.${ctx.same?` ${ctx.same} already there.`:''}`:ctx.same?'These books are already on your shelf.':'Nothing was added.');
+  }catch(e){if(ctx.added.length)await showShelf();toast(e&&e.name==='QuotaExceededError'?'Storage is full. Delete a book first.':'This file is not a Photobook Studio backup.')}
 }
 
 /* ========== Preview ========== */
@@ -1547,7 +1601,7 @@ async function exportPDF(){
         $('.dlg-b',m).innerHTML=`<p style="margin-top:0;font-weight:600">Your PDF is ready.</p><p class="note">${(blob.size/1048576).toFixed(1)} MB · ${bk.pages.length} pages. Upload it to a photobook printer that accepts PDF files.</p>`;
         $('.dlg-f',m).innerHTML=`<button class="btn" data-x2>Close</button>${canShare?'<button class="btn" data-share>Share</button>':''}<button class="btn primary" data-dl>Download PDF</button>`;
         busy=false;
-        m.addEventListener('click',async ev=>{if(ev.target.closest('[data-x2]'))m.remove();if(ev.target.closest('[data-dl]'))downloadBlob(blob,name);if(ev.target.closest('[data-share]')){try{await navigator.share({files:[file],title:bk.title})}catch(er){}}});
+        m.addEventListener('click',async ev=>{if(ev.target.closest('[data-x2]'))m.remove();if(ev.target.closest('[data-dl]')){if(await downloadBlob(blob,name)===true)toast('PDF saved.')}if(ev.target.closest('[data-share]')){try{await navigator.share({files:[file],title:bk.title})}catch(er){}}});
       }catch(err){console.error(err);busy=false;$('#ex-st',m).textContent='Could not make the PDF: '+(err&&err.message||err)+'. Try “For sharing” quality.'}
     }
   });
@@ -1585,7 +1639,7 @@ document.addEventListener('click',async e=>{
   const act=t.closest('[data-act]')?.dataset.act;
   if(S.view==='shelf'){
     if(act==='new')return startNew();
-    if(act==='restore'){const f=$('#file-backup');f.value='';f.onchange=()=>f.files[0]&&restoreBackup(f.files[0]);f.click();return}
+    if(act==='backup'){openBackupWin();return}
     const rn=t.closest('[data-rename]');if(rn){startRename(rn.dataset.rename);return}
     if(t.closest('.ren-inp'))return;
     const o=t.closest('[data-open]');if(o)return openBook(o.dataset.open);
@@ -1789,7 +1843,7 @@ if(document.fonts){document.fonts.ready.then(()=>{fontVer++;rerenderView()});doc
   await store.init();
   if(!store.ok)toast('This browser is not saving data. Your books will be lost when you close the page.',5000);
   await showShelf();
-  if('serviceWorker'in navigator&&location.protocol==='https:'){try{navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}}
+  if('serviceWorker'in navigator&&location.protocol==='https:'&&!window.AndroidFiles){try{navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}}
 })();
 </script>
 </body>

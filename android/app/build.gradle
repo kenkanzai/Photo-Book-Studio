@@ -1,0 +1,51 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Each GitHub build gets a higher number, so a new APK installs over the old one and keeps your books.
+def buildNo = (System.getenv('GITHUB_RUN_NUMBER') ?: '1') as Integer
+
+android {
+    namespace 'com.kenkanzai.photobookstudio'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.kenkanzai.photobookstudio'
+        minSdk 24
+        targetSdk 34
+        versionCode buildNo
+        versionName "1.${buildNo}"
+    }
+
+    // Same key for every build: Android only installs an update over the old app when the key matches.
+    signingConfigs {
+        release {
+            storeFile file('photobook.keystore')
+            storePassword 'photobook-studio'
+            keyAlias 'photobook'
+            keyPassword 'photobook-studio'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    implementation 'androidx.activity:activity:1.9.3'
+    implementation 'androidx.webkit:webkit:1.11.0'
+}

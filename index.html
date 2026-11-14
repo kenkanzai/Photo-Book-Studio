@@ -136,7 +136,8 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.45}
 .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
 .photo-grid .pt{position:relative;aspect-ratio:1;border-radius:8px;background:var(--surface-2) center/cover no-repeat;border:0;padding:0}
-.photo-grid .pt .x{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:14px;line-height:24px}
+.pt-cell{position:relative}.pt-cell>.pt{display:block;width:100%}
+.pt-cell>.x,.photo-grid .pt .x{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:14px;line-height:24px}
 .photo-grid .pt .used{position:absolute;left:4px;bottom:4px;font-size:11px;font-weight:700;background:rgba(0,0,0,.6);color:#fff;border-radius:6px;padding:1px 6px}
 .add-tile{aspect-ratio:1;border-radius:8px;border:1.5px dashed var(--muted);background:transparent;color:var(--muted);font-weight:600;font-size:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
 .add-tile b{font-size:24px;line-height:1}
@@ -1083,12 +1084,38 @@ function bookName(bk){return(bk.name||bk.title||'Untitled').trim()||'Untitled'}
 function photoIdsOf(book){const s=new Set();allP(book).forEach(p=>(p.photos||[]).forEach(x=>x&&s.add(x.id)));return[...s]}
 
 /* ========== Auto layout ========== */
+/* Photos laid out on new pages, mixing layouts */
+function layoutRun(ids){const out=[],seq=['full','two','full','three','scatter2','grid4','full','collage','twoSide','photoText','scatter3'];let k=0,i=0;
+  while(i<ids.length){const left=ids.length-i;let lay=seq[k%seq.length];k++;let n=LAYOUTS[lay].n;if(n>left){lay=left>=4?'grid4':left===3?'three':left===2?'two':'full';n=LAYOUTS[lay].n}
+    out.push(newPage(lay,{photos:ids.slice(i,i+n).map(slot)}));i+=n}
+  return out}
+const LAY_BY_N=['','full','two','three','grid4'];
+/* Several photos added from one box: the first goes in that box, then the page's other empty boxes; the rest get new pages after this page.
+   2-page photos later in the book keep their pair (an even number of new pages, or the pages go at the end). */
+function placeNew(bk,tgt,slotIdx,ids){
+  const q=[...ids],n=slotCount(bk,tgt);
+  while(tgt.photos.length<=slotIdx)tgt.photos.push(null);tgt.photos[slotIdx]=slot(q.shift());
+  for(let j=0;j<n&&q.length;j++)if(!tgt.photos[j]){while(tgt.photos.length<=j)tgt.photos.push(null);tgt.photos[j]=slot(q.shift())}
+  if(!q.length)return null;
+  const pages=layoutRun(q),L=bk.pages.length,last=bk.pages[L-1];
+  const endAt=last&&last.layout==='note'&&!last.quote&&L>2?L-1:L;
+  const i=bk.pages.indexOf(tgt);
+  let at=tgt===bk.back?endAt:i<=0?2:(tgt.layout==='spread'&&spreadPair(bk,tgt))?i+2:i+1;
+  at=Math.min(at,L);
+  const pairAfter=a=>bk.pages.slice(a).some(p=>p.layout==='spread'&&spreadPair(bk,p));
+  if(pages.length%2&&pairAfter(at)){
+    let k=-1;pages.forEach((p,j)=>{if(p.photos.length>=2&&p.photos.length<=4)k=j});
+    const sp=pages[k];
+    if(sp&&sp.photos.length>=2){const h=Math.ceil(sp.photos.length/2),a=sp.photos.slice(0,h),b=sp.photos.slice(h);pages.splice(k,1,newPage(LAY_BY_N[a.length],{photos:a}),newPage(LAY_BY_N[b.length],{photos:b}))}
+    else at=endAt;
+  }
+  bk.pages.splice(at,0,...pages);
+  return{here:ids.length-q.length,more:q.length,from:at,to:at+pages.length-1};
+}
 function autoPages(book,allIds,stops){
   const nc=coverSlots(book),pages=[newPage('cover',{photos:allIds.slice(0,nc).map(slot)})];const photoIds=allIds.slice(nc);
   pages.push(newPage('note',{quote:true}));
-  const fill=(ids)=>{const seq=['full','two','full','three','scatter2','grid4','full','collage','twoSide','photoText','scatter3'];let k=0,i=0;
-    while(i<ids.length){const left=ids.length-i;let lay=seq[k%seq.length];k++;let n=LAYOUTS[lay].n;if(n>left){lay=left>=4?'grid4':left===3?'three':left===2?'two':'full';n=LAYOUTS[lay].n}
-      pages.push(newPage(lay,{photos:ids.slice(i,i+n).map(slot)}));i+=n}};
+  const fill=(ids)=>pages.push(...layoutRun(ids));
   if(book.type==='trip'&&stops.length){
     pages.push(newPage('route',{stops:stops.map(s=>({...s})),text:{title:'Travel route',sub:book.year||'',body:''}}));
     const per=Math.ceil(photoIds.length/stops.length)||0;
@@ -1122,7 +1149,7 @@ const app=()=>$('#app');
 
 /* ========== Shelf ========== */
 async function showShelf(){
-  clearTimeout(saveTimer);if(S.book)await saveBook();
+  clearTimeout(saveTimer);if(S.book){await saveBook();await purgeTrash(S.book)}
   S.view='shelf';S.book=null;
   const all=await store.all('books');for(const b of all)if(b.deleted&&Date.now()-b.deleted>15000)deleteBook(b);
   S.books=all.filter(b=>!b.deleted).sort((a,b)=>(b.updated||0)-(a.updated||0));
@@ -1200,7 +1227,7 @@ async function makeBook(){
 /* ========== Editor ========== */
 async function openBook(id,bk){
   bk=bk||await store.get('books',id);if(!bk){toast('That book could not be found.');return showShelf()}
-  bk.photoIds=bk.photoIds||photoIdsOf(bk);
+  bk.photoIds=bk.photoIds||photoIdsOf(bk);await purgeTrash(bk);
   await ensurePhotos([...bk.photoIds,...photoIdsOf(bk)]);
   ensureCoverParts(bk);if(dedupe(bk))store.put('books',JSON.parse(JSON.stringify(bk)));
   S.book=bk;S.view='edit';S.sel=0;S.spread=0;S.stickerSel=null;histReset();renderEditor();
@@ -1383,17 +1410,24 @@ function makeSpread(i){const bk=S.book;if(i<=1){toast('Page 1 is the caption pag
 function openPicker(slotIdx){
   const bk=S.book,tgt=curPage(),used=new Map();allP(bk).forEach(p=>(p.photos||[]).slice(0,slotCount(bk,p)).forEach((x,j)=>{if(x&&!(p===tgt&&j===slotIdx))used.set(x.id,placeName(bk,p))}));
   const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="pk-h"><div class="dlg-h"><h2 id="pk-h">Choose a photo</h2><button class="icon-btn" data-x aria-label="Close">×</button></div>
-    <div class="dlg-b"><p class="note" style="margin-top:0">Each photo is used once. Picking one that is already on another page moves it here.</p><div class="photo-grid">${bk.photoIds.map(id=>`<button class="pt" data-pid="${id}" style="background-image:url('${photoSrc(id,'thumb')}')" aria-label="Use this photo">${used.has(id)?`<span class="used">${used.get(id)}</span>`:''}</button>`).join('')}<button class="add-tile" data-add><b>+</b>Add photos</button></div><p id="pk-st" class="note" role="status"></p></div></div>`;
-  document.body.appendChild(m);
+    <div class="dlg-b"><p class="note" style="margin-top:0">Each photo is used once. Picking one that is already on another page moves it here.</p><div class="photo-grid" id="pk-grid"></div><p id="pk-st" class="note" role="status"></p></div></div>`;
+  const grid=()=>{used.clear();allP(bk).forEach(p=>(p.photos||[]).slice(0,slotCount(bk,p)).forEach((x,j)=>{if(x&&!(p===tgt&&j===slotIdx))used.set(x.id,placeName(bk,p))}));
+    $('#pk-grid',m).innerHTML=bk.photoIds.map(id=>`<div class="pt-cell"><button class="pt" data-pid="${id}" style="background-image:url('${photoSrc(id,'thumb')}')" aria-label="Use this photo">${used.has(id)?`<span class="used">${used.get(id)}</span>`:''}</button><button class="x" data-rmpid="${id}" aria-label="Remove this photo from the book">×</button></div>`).join('')+`<button class="add-tile" data-add><b>+</b>Add photos</button>`};
+  document.body.appendChild(m);grid();
   const close=()=>{m.remove();document.removeEventListener('keydown',onKey)};const onKey=e=>{if(e.key==='Escape')close()};document.addEventListener('keydown',onKey);
   m.addEventListener('click',async e=>{
     if(e.target===m||e.target.closest('[data-x]'))return close();
+    const rm=e.target.closest('[data-rmpid]');if(rm){const id=rm.dataset.rmpid,where=used.get(id)||((tgt.photos||[]).some(x=>x&&x.id===id)?placeName(bk,tgt):'');
+      if(!confirm(where?`Remove this photo from the book? It is on ${where}; that box will be empty.`:'Remove this photo from the book?'))return;
+      bk.photoIds=bk.photoIds.filter(x=>x!==id);allP(bk).forEach(pp=>(pp.photos||[]).forEach((x,j)=>{if(x&&x.id===id)pp.photos[j]=null}));
+      bk.trash=[...new Set([...(bk.trash||[]),id])];changed({insp:true,strip:true});commitNow();grid();
+      toastAction('Photo removed from the book.','Undo',()=>{const open=document.body.contains(m);if(open)close();undo();if(open)openPicker(slotIdx)},6000);return}
     const b=e.target.closest('[data-pid]');if(b){const id=b.dataset.pid;allP(bk).forEach(pp=>(pp.photos||[]).forEach((x,j)=>{if(x&&x.id===id)pp.photos[j]=null}));const p=tgt;while(p.photos.length<=slotIdx)p.photos.push(null);p.photos[slotIdx]=slot(b.dataset.pid);close();changed({insp:true});return}
-    if(e.target.closest('[data-add]')){pickFiles(async files=>{const st=$('#pk-st',m);const ids=await importFiles(files,bk.id,(i,n)=>{st.textContent=`Adding photo ${i} of ${n}…`});bk.photoIds.push(...ids);touch();close();if(ids.length){const p=tgt;while(p.photos.length<=slotIdx)p.photos.push(null);p.photos[slotIdx]=slot(ids[0]);changed({insp:true})}openPickerIf(ids.length>1,slotIdx)})}
+    if(e.target.closest('[data-add]')){pickFiles(async files=>{const st=$('#pk-st',m);const ids=await importFiles(files,bk.id,(i,n)=>{st.textContent=`Adding photo ${i} of ${n}…`});close();if(!ids.length)return;bk.photoIds.push(...ids);const r=placeNew(bk,tgt,slotIdx,ids);changed({insp:true,strip:true});
+      if(r)toast(r.from===r.to?`${ids.length} photos added: ${r.here} on this page, ${r.more} on new page ${r.from}.`:`${ids.length} photos added: ${r.here} on this page, ${r.more} on new pages ${r.from}–${r.to}.`,5000)})}
   });
   m.querySelector('[data-x]').focus();
 }
-function openPickerIf(c,i){if(c)toast('Photos added. Pick more from “Change” on any page.')}
 function pickFiles(cb){const f=$('#file-photos');f.value='';f.onchange=()=>{const files=[...f.files];if(files.length)cb(files)};f.click()}
 
 /* ========== Book settings ========== */
@@ -1420,7 +1454,11 @@ function openBookSettings(){
       const tm=setTimeout(()=>{deleteBook(bk)},10000);toastAction(`“${bk.title||'Untitled'}” deleted.`,'Undo',async()=>{clearTimeout(tm);delete bk.deleted;await store.put('books',JSON.parse(JSON.stringify(bk)));showShelf();toast('Book restored.')},10000)}
   });
 }
-async function deleteBook(bk){const cur=await store.get('books',bk.id);if(cur&&!cur.deleted)return;for(const id of bk.photoIds||[]){await store.del('photos',id);await store.del('full',id);photoMeta.delete(id)}await store.del('books',bk.id);S.book=null}
+/* Photos removed in the editor stay on the device until the book is closed, so Undo can bring them back */
+async function purgeTrash(bk){if(!bk||!bk.trash||!bk.trash.length)return;const keep=new Set([...(bk.photoIds||[]),...photoIdsOf(bk)]);
+  for(const id of bk.trash){if(keep.has(id))continue;const r=await store.get('photos',id);if(r&&r.bookId&&r.bookId!==bk.id)continue;await store.del('photos',id);await store.del('full',id);photoMeta.delete(id)}
+  bk.trash=[];await store.put('books',JSON.parse(JSON.stringify(bk)))}
+async function deleteBook(bk){const cur=await store.get('books',bk.id);if(cur&&!cur.deleted)return;for(const id of [...(bk.photoIds||[]),...(bk.trash||[])]){await store.del('photos',id);await store.del('full',id);photoMeta.delete(id)}await store.del('books',bk.id);S.book=null}
 
 /* ========== Photo enhance ==========
    Auto looks run on the device (offline). AI enhance sends the photo to Google Gemini with the user's own key.

@@ -1,0 +1,16 @@
+{
+  "name": "Photobook Studio",
+  "short_name": "Photobook",
+  "description": "Make printed-style photobooks from your trips and special days.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#EEF0EA",
+  "theme_color": "#4F6127",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

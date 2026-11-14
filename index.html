@@ -191,6 +191,7 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.45}
 .slot .fx.none{cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted);font-weight:600;font-size:13px;border:1.5px dashed var(--muted);background:transparent}
 .slot .acts{display:flex;gap:4px}
 .slot .acts button.on{background:var(--accent-soft);border-color:var(--accent)}
+.zrows{display:flex;flex-direction:column;gap:8px}.zrow{display:flex;align-items:center;gap:10px}.zrow input{flex:1;min-width:0}.zth{flex:0 0 36px;height:36px;border-radius:6px;background:var(--surface-2) center/cover no-repeat}
 .en-ims{display:grid;grid-template-columns:1fr 1fr;gap:10px}.en-ims figure{margin:0;min-width:0}.en-ims figcaption{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:4px}
 .en-ims canvas{width:100%;height:auto;display:block;border-radius:8px;background:var(--surface-2)}.en-wrap{position:relative}
 .en-busy{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;background:rgba(10,12,11,.55);color:#fff;font-weight:600;font-size:14px;border-radius:8px}
@@ -264,7 +265,7 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.45}
 .lay-btn.l{left:8px}.lay-btn.r{right:8px}
 .lay-btn svg{width:16px;height:16px}
 .enh-btn{position:absolute;z-index:7;width:30px;height:30px;border-radius:50%;border:0;background:rgba(255,255,255,.94);color:#1D2120;box-shadow:0 1px 5px rgba(0,0,0,.28);font-size:15px;line-height:30px;padding:0;text-align:center}
-.enh-btn.on{background:var(--accent);color:#fff}
+.enh-btn.on{background:var(--accent);color:#fff}.un-btn{font-size:13px}
 .cap-al{position:absolute;z-index:8;box-shadow:0 2px 8px rgba(0,0,0,.25)}
 .stage .pg .ph{cursor:pointer;touch-action:none}
 .stage .pg .ph:not(.empty){cursor:grab}
@@ -1293,10 +1294,12 @@ function renderStage(){
 /* Enhance button on each photo of the open pages (top-right corner, kept clear of the layout button) */
 function drawPhotoBtns(){const st=$('#stage');if(!st)return;const sr=st.getBoundingClientRect(),lays=$$('.lay-btn',st).map(b=>b.getBoundingClientRect()),S2=30;
   $$('.pgbox[data-pi] .ph[data-slot]:not(.empty), .pgbox[data-part="back"] .ph[data-slot]:not(.empty)',st).forEach(el=>{const s=slotOfEl(el);if(!s)return;const r=el.getBoundingClientRect();if(r.width<S2+16||r.height<S2+16)return;
-    let x=r.right-12-S2,y=r.top+12;for(const L of lays)if(x<L.right&&x+S2>L.left&&y<L.bottom&&y+S2>L.top)x=L.left-6-S2;if(x<r.left+6)return;
+    let x=r.right-12-S2,y=r.top+12;for(const L of lays)if(x-S2-6<L.right&&x+S2>L.left&&y<L.bottom&&y+S2>L.top)x=L.left-6-S2;if(x-S2-6<r.left+6)return;
     const m=photoMeta.get(s.id),on=!!(m&&m.enh);const b=document.createElement('button');b.className='enh-btn'+(on?' on':'');b.dataset.enh=s.id;
     b.title=on?'Enhanced ('+enhLabel(m.enh)+'). Tap to change':'Enhance photo';b.setAttribute('aria-label',b.title);b.textContent='✦';
-    Object.assign(b.style,{left:(x-sr.left)+'px',top:(y-sr.top)+'px'});st.appendChild(b)})}
+    Object.assign(b.style,{left:(x-sr.left)+'px',top:(y-sr.top)+'px'});st.appendChild(b);
+    const bx=el.closest('.pgbox'),u=document.createElement('button');u.className='enh-btn un-btn';u.dataset.unat=(bx.dataset.part==='back'?'back':bx.dataset.pi)+':'+el.dataset.slot;u.title='Take this photo off the page';u.setAttribute('aria-label',u.title);u.textContent='✕';
+    Object.assign(u.style,{left:(x-S2-6-sr.left)+'px',top:(y-sr.top)+'px'});st.appendChild(u)})}
 function drawCapHandles(){const st=$('#stage');if(!st)return;const c=st.querySelector('.pgbox.sel .pg .cap');if(!c)return;const sr=st.getBoundingClientRect(),r=c.getBoundingClientRect(),g=5;
   const o=document.createElement('div');o.className='cap-ov';Object.assign(o.style,{left:(r.left-sr.left-g)+'px',top:(r.top-sr.top-g)+'px',width:(r.width+2*g)+'px',height:(r.height+2*g)+'px'});
   o.innerHTML=['tl','tr','bl','br'].map(h=>`<i class="c" data-h="${h}" title="Drag to resize the box"></i>`).join('')+['l','r'].map(h=>`<i class="s" data-h="${h}" title="Drag to change the width"></i>`).join('')+['t','b'].map(h=>`<i class="v" data-h="${h}" title="Drag to change the height"></i>`).join('');st.appendChild(o);
@@ -1356,9 +1359,10 @@ function renderInsp(){
       <span class="note" style="display:block;margin:10px 0 4px;font-weight:600;color:var(--ink)">Text colour</span>${colorRow('spink',sp.ink||'',['','#1E1E1E','#FFFFFF',P.accent,P.title])}</div>
       <div class="grp"><label class="lbl" for="sp-mm">Spine width (mm)</label><input class="inp" id="sp-mm" type="number" min="3" max="60" step="0.5" data-sp-mm value="${sp.mm||''}" placeholder="${spineMM({...bk,spine:{}})}" style="max-width:140px"><p class="note">Empty = ${spineMM({...bk,spine:{}})} mm, worked out from ${bk.pages.length-1} pages. Type the width your printer gives you for an exact fit.</p></div>`;
     el.innerHTML=h;const pv=$('#sp-prev');if(pv)pv.scrollLeft=(pv.scrollWidth-pv.clientWidth)/2;return}
-  const photosHTML=()=>{if(!nSlots)return'';return`<div class="grp"><span class="lbl">${isCover?'Cover photo':isBack?'Photo':'Photos'}</span><div class="slots">${Array.from({length:nSlots},(_,i)=>{const s=p.photos[i];const src=s&&photoSrc(s.id,'thumb');
-      return src?`<div class="slot"><div class="fx" data-focus="${i}" style="background-image:url('${src}')" title="Tap the part of the photo to keep in view"><span class="dot" style="left:${(s.fx??.5)*100}%;top:${(s.fy??.5)*100}%"></span></div><label class="note" style="margin:0" for="z-${i}">Zoom</label><input type="range" id="z-${i}" min="1" max="3" step="0.05" value="${s.z||1}" data-zoom="${i}" style="accent-color:var(--accent)"><div class="acts"><button data-pick="${i}">Change</button><button data-unslot="${i}" aria-label="Remove photo ${i+1}">✕</button></div></div>`
-      :`<div class="slot"><button class="fx none" data-pick="${i}">+ Photo</button></div>`}).join('')}</div>${isCover&&bk.cover.style==='photo'?`<label class="note" for="i-phh" style="display:block;margin:12px 0 4px;font-weight:600;color:var(--ink)">Photo size</label><div class="range"><input type="range" id="i-phh" min="0.4" max="1" step="0.02" value="${bk.cover.phH||.74}" data-phh><span id="phh-v">${Math.round((bk.cover.phH||.74)*100)}%</span></div><p class="note">100% fills the whole cover.</p>`:''}<p class="note">Drag the photo on the page to choose the part that shows.</p></div>`};
+  const photosHTML=()=>{if(!nSlots)return'';const rows=Array.from({length:nSlots},(_,i)=>{const s=p.photos[i];const src=s&&photoSrc(s.id,'thumb');
+      return src?`<div class="zrow"><span class="zth" style="background-image:url('${src}')" aria-hidden="true"></span><input type="range" id="z-${i}" min="1" max="3" step="0.05" value="${s.z||1}" data-zoom="${i}" aria-label="Zoom photo ${i+1}" style="accent-color:var(--accent)"></div>`:''}).join('');
+    const phh=isCover&&bk.cover.style==='photo'?`<label class="note" for="i-phh" style="display:block;margin:12px 0 4px;font-weight:600;color:var(--ink)">Photo size</label><div class="range"><input type="range" id="i-phh" min="0.4" max="1" step="0.02" value="${bk.cover.phH||.74}" data-phh><span id="phh-v">${Math.round((bk.cover.phH||.74)*100)}%</span></div><p class="note">100% fills the whole cover.</p>`:'';
+    if(!rows&&!phh)return'';return`<div class="grp"><span class="lbl">${isCover?'Cover photo':'Photo zoom'}</span>${rows?`${isCover?'<span class="note" style="display:block;margin:0 0 4px;font-weight:600;color:var(--ink)">Zoom</span>':''}<div class="zrows">${rows}</div>`:''}${phh}</div>`};
   if(isCover){
     h+=`${photosHTML()}
     <div class="grp"><span class="lbl">Words</span><label class="note" for="i-title" style="display:block;margin:0 0 4px;font-weight:600;color:var(--ink)">Title</label><input class="inp" id="i-title" data-bk="title" value="${esc(bk.title)}">
@@ -1377,14 +1381,13 @@ function renderInsp(){
   if(!isCover&&!isBack){
     const tf=[];
     if(['title','chapter','route','note','photoText','full'].includes(p.layout))tf.push(['title',p.layout==='chapter'?'Place name':p.layout==='full'?'Caption':p.quote?'Heading (optional)':'Heading']);
-    if(['title','chapter','route','full'].includes(p.layout))tf.push(['sub',p.layout==='chapter'?'Dates':p.layout==='route'?'Dates at bottom':'Small line']);
+    if(['title','chapter','route','full'].includes(p.layout))tf.push(['sub',p.layout==='chapter'?'Dates':p.layout==='route'?'Dates at bottom':p.layout==='full'?'Place or date':'Small line']);
     if(['note','photoText'].includes(p.layout))tf.push(['body',p.quote?'Caption or quote':'Text']);
     const alignDef=p.layout==='full'?(()=>{const cp=capOf(p);return cp.ax===0?'left':cp.ax===100?'right':'center'})():p.layout==='photoText'?'left':'center';
     const alignPanel=['note','photoText'].includes(p.layout)?alignRow(p.align||alignDef):'';
-    const capPanel=p.layout==='full'?(()=>{const cp=capOf(p);return`<p class="note" style="margin-top:12px">Drag the caption to move it, and its handles to resize it.</p>
-      <div style="margin-top:8px"><button class="btn small" data-capfit ${cp.w||cp.h?'':'disabled'}>Fit to text</button></div>
+    const capPanel=p.layout==='full'?(()=>{const cp=capOf(p);return`<div style="margin-top:12px"><button class="btn small" data-capfit ${cp.w||cp.h?'':'disabled'}>Fit to text</button></div>
       <span class="note" style="display:block;margin:12px 0 6px;font-weight:600;color:var(--ink)">Behind the caption</span><div class="chips">${[['shadow','Soft shadow'],['band','Dark band'],['box','Light box'],['none','Nothing']].map(([k,l])=>`<button class="chip" data-capstyle="${k}" aria-pressed="${cp.style===k}">${l}</button>`).join('')}</div>`})():'';
-    if(tf.length)h+=`<div class="grp"><span class="lbl">Words</span>${tf.map(([k,l])=>`<label class="note" for="t-${k}" style="display:block;margin:8px 0 4px;font-weight:600;color:var(--ink)">${l}</label>${k==='body'?`<textarea class="inp" id="t-${k}" data-text="${k}">${esc(p.text[k])}</textarea>`:`<input class="inp" id="t-${k}" data-text="${k}" value="${esc(p.text[k])}">`}`).join('')}${alignPanel}${capPanel}</div>`;
+    if(tf.length)h+=`<div class="grp"><span class="lbl">Words</span>${tf.map(([k,l])=>`<label class="note" for="t-${k}" style="display:block;margin:8px 0 4px;font-weight:600;color:var(--ink)">${l}</label>${k==='body'?`<textarea class="inp" id="t-${k}" data-text="${k}">${esc(p.text[k])}</textarea>`:`<input class="inp" id="t-${k}" data-text="${k}" value="${esc(p.text[k])}"${p.layout==='full'&&k==='sub'?' placeholder="Athens · June 2026"':''}>`}`).join('')}${alignPanel}${capPanel}</div>`;
     if(p.layout==='route')h+=`<div class="grp"><span class="lbl">Stops</span>${(p.stops||[]).map((s,i)=>`<div class="stop-row"><input class="inp" data-stop="${i}" data-f="name" value="${esc(s.name)}" placeholder="Place" aria-label="Place ${i+1}"><input class="inp" data-stop="${i}" data-f="date" value="${esc(s.date)}" placeholder="Dates" aria-label="Dates ${i+1}"><button data-rmstop="${i}" aria-label="Remove stop ${i+1}">×</button></div>`).join('')}<button class="btn small" data-act="addstop">+ Add stop</button></div>`;
     if(['title','chapter'].includes(p.layout))h+=`<div class="grp"><span class="lbl">Illustration</span><div class="motifs">${['',...MOTIF_KEYS].map(k=>`<button class="mo-btn" data-pmotif="${k}" aria-pressed="${(p.motif||'')===k}" aria-label="${k?MOTIFS[k].label:'Same as cover'}" title="${k?MOTIFS[k].label:'Same as cover'}" style="${k&&k!=='none'?`background-image:${motifURL(k,P.accent)}`:''}">${k===''?'Cover':k==='none'?'None':''}</button>`).join('')}</div></div>`;
   }
@@ -1403,7 +1406,7 @@ function renderInsp(){
   if(ss)h+=`<p class="note" style="margin-top:12px">Selected ${ss.e}. Drag it on the page to move it.</p><label class="note" for="s-size" style="display:block;margin:8px 0 4px">Size</label><div class="range"><input type="range" id="s-size" min="24" max="320" value="${ss.s}" data-ssize></div><label class="note" for="s-rot" style="display:block;margin:8px 0 4px">Turn</label><div class="range"><input type="range" id="s-rot" min="-45" max="45" value="${ss.r||0}" data-srot></div><button class="btn small danger" data-act="rmsticker" style="margin-top:8px">Remove sticker</button>`;
   else if(p.stickers.length)h+=`<p class="note">Tap a sticker on the page to move, resize or remove it.</p>`;
   h+=`</div>`;
-  if(!isCover&&!isBack&&!p.quote&&p.layout!=='spread'&&p.layout!=='spreadR')h+=`<div class="grp"><span class="lbl">Page</span><div class="page-acts"><button class="btn small" data-act="dup">Duplicate page</button></div><p class="note">To move a page, drag it in the strip below. Tap × to delete it. Books print best with an even number of pages. This book has ${bk.pages.length-1}.</p></div>`;
+  if(!isCover&&!isBack&&!p.quote&&p.layout!=='spread'&&p.layout!=='spreadR')h+=`<div class="grp"><span class="lbl">Page</span><p class="note" style="margin-top:0">To move a page, drag it in the strip below. Tap × to delete it. Books print best with an even number of pages. This book has ${bk.pages.length-1}.</p></div>`;
   el.innerHTML=h;
 }
 
@@ -1904,7 +1907,6 @@ document.addEventListener('click',async e=>{
     case 'prev':if(onePage())return select(S.sel-1);S.spread=Math.max(0,S.spread-1);return select(S.spread===0?0:realPages(spreadPages(S.spread))[0]);
     case 'next':if(onePage())return select(S.sel+1);S.spread=Math.min(spreadCount()-1,S.spread+1);return select(realPages(spreadPages(S.spread))[0]);
     case 'addpage':{const np=newPage('full');bk.pages.splice(S.sel+1,0,np);touch();select(S.sel+1);return}
-    case 'dup':{const c=JSON.parse(JSON.stringify(p));c.id=uid();c.stickers.forEach(s=>s.id=uid());bk.pages.splice(S.sel+1,0,c);touch();select(S.sel+1);return}
     case 'undo':return undo();
     case 'redo':return redo();
     case 'addstop':p.stops.push({name:'',date:''});changed({insp:true});$$('#insp [data-stop][data-f="name"]').pop()?.focus();return;
@@ -1930,7 +1932,7 @@ document.addEventListener('click',async e=>{
   const fo=t.closest('[data-font]');if(fo){bk.cover.font=fo.dataset.font;touch();renderStage();renderStrip();renderInsp();return}
   const pk=t.closest('[data-pick]');if(pk)return openPicker(+pk.dataset.pick);
   const en=t.closest('[data-enh]');if(en)return openEnhance(en.dataset.enh);
-  const un=t.closest('[data-unslot]');if(un){p.photos[+un.dataset.unslot]=null;return changed({insp:true})}
+  const un=t.closest('[data-unat]');if(un){const[a,j]=un.dataset.unat.split(':'),pp=a==='back'?bk.back:bk.pages[+a];if(pp&&pp.photos){pp.photos[+j]=null;changed({insp:true,strip:true});commitNow();toastAction('Photo taken off the page. It is still in “Choose a photo”.','Undo',undo)}return}
   const fx=t.closest('[data-focus]');if(fx&&fxDragged){fxDragged=false;return}if(fx){const r=fx.getBoundingClientRect();const s=p.photos[+fx.dataset.focus];if(s){s.fx=r1(clamp((e.clientX-r.left)/r.width,0,1)*100)/100;s.fy=r1(clamp((e.clientY-r.top)/r.height,0,1)*100)/100;const dot=fx.querySelector('.dot');dot.style.left=s.fx*100+'%';dot.style.top=s.fy*100+'%';changed()}return}
   const ptab=t.closest('[data-part-tab]');if(ptab){S.coverPart=ptab.dataset.partTab;S.stickerSel=null;renderStage();renderInsp();return}
   const alb=t.closest('[data-align]');if(alb){p.align=alb.dataset.align;return changed({insp:true})}

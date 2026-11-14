@@ -16,7 +16,7 @@ A single-file photobook app (index.html). Installable on phone and laptop from G
 - Page layouts (▦ window): Photo + caption, Full page, Across 2 pages, 2 stacked, 2 side by side, 1 big + 2, 4 grid, Collage, 6 grid, Centered photo, 2 scattered, 3 scattered, Title page, Place page, Travel route, Words only.
 - Trip with stops: auto-adds a Travel route page and a Place page before each stop's photos.
 - Full-photo caption is a text box: drag it to move (stays inside the page); 8 handles like a Word text box: corners change width and height, sides change width, top/bottom change height; the text keeps its size and rewraps (letter size only via Text height). 'Fit to text' returns to auto size; behind it: soft shadow, dark band, light box or nothing.
-- Text alignment (Left, Centre, Right, Justify): for the full-photo caption it is a small bar right under the caption box on the page (not in the side panel); for Page 1 quote, Words only, Photo + caption and the back cover. Empty = layout default (caption left; quote, Words only and back cover centred; Photo + caption left).
+- Caption bar: under the full-photo caption box on the page there is a small bar with Text alignment (Left, Centre, Right, Justify) and Text height in mm (applies on Enter or leaving the box). Neither is in the side panel on photo pages. Text alignment for Page 1 quote, Words only, Photo + caption and the back cover. Empty = layout default (caption left; quote, Words only and back cover centred; Photo + caption left).
 - Every page: text, font, text height, text colour, background, stickers (drag to move).
 - Text height (cover title, pages, back cover, spine): a number box in mm = height of a capital letter of the main text (cover title, page heading, or the body when there is no heading). Other text on the page keeps its proportion. Stored as the old size factor (page.ts, spine.size); mm = factor × size at 100% × capital height of the font (measured, capR()) ÷ 3.937 px per mm (pages are 100 px per inch).
 - Text never breaks a word or leaves its area: txLimit() finds the largest size that fits (whole words, block height inside the area) and the page is always drawn at no more than that. The box says the range that fits; typing more stops at the largest and says so. Smallest: 3 mm (spine 1.5 mm).
@@ -27,7 +27,10 @@ A single-file photobook app (index.html). Installable on phone and laptop from G
 - Back cover: colour, optional photo, words, small cover picture.
 - PDF cover: full cover sheet (back + spine + front, one wide page) or front cover only.
 - Sizes: Portrait 8×10 in, Landscape 10×7 in, Square 8×8 in.
-- Save PDF: 300 dpi for printing, or a smaller file for sharing.
+- Save PDF: 300 dpi for printing, or a smaller file for sharing (150 dpi, no bleed, 1 file).
+- For printing (made for photo printers): Bleed in mm (default 3): each PDF page is the trim size + bleed on every side; photos and edge bands that touch a cut edge reach into the bleed, the page background fills the rest (bleedBox(), bleedPart(), bleedFinish()). On the cover sheet only the outer edges get bleed (not between back, spine and front). Sheet width = 2 × page + spine + 2 × bleed.
+- Files: 2 files (Title-cover.pdf and Title-inside.pdf, what photo printers usually ask for) or 1 file.
+- Sharpness check (lowResList()): before saving, lists photos under 200 dpi at their printed size, with the page, worst first (under 150 = blurry). dpi = saved full photo pixels (max 3000 px) ÷ printed inches, zoom included.
 - Across 2 pages: one photo over a left + right page (layout 'spread' on the left page, 'spreadR' on the right). Pick it on either page of a spread (not page 1); the PDF prints each half on its own page. Drag the photo on either half to move the view.
 - Page 1 is always the caption or quote page, on the right side (left = inside of front cover), like a real book. It cannot be deleted or moved; spreads after it are 2–3, 4–5…; the last spread can show the inside of back cover.
 - Page strip: drag a page to move it (phone: hold, then drag); × deletes it.

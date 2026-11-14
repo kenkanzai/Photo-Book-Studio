@@ -266,7 +266,9 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.45}
 .lay-btn svg{width:16px;height:16px}
 .enh-btn{position:absolute;z-index:7;width:30px;height:30px;border-radius:50%;border:0;background:rgba(255,255,255,.94);color:#1D2120;box-shadow:0 1px 5px rgba(0,0,0,.28);font-size:15px;line-height:30px;padding:0;text-align:center}
 .enh-btn.on{background:var(--accent);color:#fff}.un-btn{font-size:13px}
-.cap-al{position:absolute;z-index:8;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.cap-al{position:absolute;z-index:8;box-shadow:0 2px 8px rgba(0,0,0,.25);align-items:center}
+.cap-mm{display:flex;align-items:center;gap:4px;padding:0 6px 0 8px;margin-left:2px;border-left:1px solid var(--line,rgba(0,0,0,.12));font-size:13px;font-weight:600;color:var(--muted)}
+.cap-mm input{width:64px;height:30px;border:1px solid rgba(0,0,0,.18);border-radius:7px;padding:0 6px;font:inherit;font-weight:600;color:var(--ink);background:#fff}
 .stage .pg .ph{cursor:pointer;touch-action:none}
 .stage .pg .ph:not(.empty){cursor:grab}
 #insp .slot .fx{touch-action:none}
@@ -930,7 +932,12 @@ const TXM=new WeakMap();
 function txLimit(page,ts,fk,base,ok){let mx=6;if(!ok(mx)){let lo=.05,hi=mx;for(let i=0;i<22;i++){const m=(lo+hi)/2;if(ok(m))lo=m;else hi=m}mx=lo}const k=Math.min(ts,mx);TXM.set(page,{fk,base,max:mx,k});return k}
 function mmOf(info,k){return Math.round(k*info.base*capR(info.fk)/PXMM*10)/10}
 const T=(css,txt)=>`<div class="tx" style="${css}">${esc(txt)}</div>`;
+/* Print: BL = bleed in page px, BLS = cut edges that get bleed (+ page W,H). PREC collects each photo's printed size for the sharpness check. */
+let BL=0,BLS=null,PREC=null,PREC_AT='';
+function bleedBox(x,y,w,h){if(!BL||!BLS)return[x,y,w,h];const e=.5,l=BLS.l&&x<=e?BL:0,t=BLS.t&&y<=e?BL:0,r=BLS.r&&x+w>=BLS.W-e?BL:0,b=BLS.b&&y+h>=BLS.H-e?BL:0;return[x-l,y-t,w+l+r,h+t+b]}
 function phDiv(s,x,y,w,h,q,extra='',idx){const da=idx===undefined?'':` data-slot="${idx}"`;
+  if(PREC&&s&&s.id&&photoMeta.get(s.id))PREC.push({id:s.id,w,h,z:s.z||1,at:PREC_AT});
+  if(s&&s.id)[x,y,w,h]=bleedBox(x,y,w,h);
   const src=s&&photoSrc(s.id,q);
   const box=`left:${r1(x)}px;top:${r1(y)}px;width:${r1(w)}px;height:${r1(h)}px;`;
   if(!src)return`<div class="ph empty"${da} style="${box}background-image:${PLUS};${extra}"></div>`;
@@ -1098,8 +1105,9 @@ function alignCSS(a){const items=a==='right'?'flex-end':a==='center'?'center':a=
 function spreadPair(book,page){const i=book.pages.indexOf(page);if(i<2)return null;if(page.layout==='spread'){const r=book.pages[i+1];return i%2===0&&r&&r.layout==='spreadR'?{left:page,i,half:0}:null}
   if(page.layout==='spreadR'){const l=book.pages[i-1];return(i-1)%2===0&&l&&l.layout==='spread'?{left:l,i:i-1,half:1}:null}return null}
 function spreadDiv(s,half,W,H,q){const src=s&&photoSrc(s.id,q);if(!src)return`<div class="ph empty" ${half?'':'data-slot="0"'} style="left:0;top:0;width:${W}px;height:${H}px;background-image:${PLUS}"></div>`;
-  const m=photoMeta.get(s.id),z=s.z||1;let size=`${2*W}px auto`,bx=0,by=0;if(m&&m.w){const k=Math.max(2*W/m.w,H/m.h)*z,iw=m.w*k,ih=m.h*k;size=`${r1(iw)}px ${r1(ih)}px`;bx=(2*W-iw)*(s.fx??.5);by=(H-ih)*(s.fy??.5)}
-  return`<div class="ph" data-span="2" ${half?'data-half="1"':'data-slot="0"'} style="left:0;top:0;width:${W}px;height:${H}px;background-image:url('${src}');background-size:${size};background-position:${r1(bx-half*W)}px ${r1(by)}px"></div>`}
+  if(PREC&&!half&&photoMeta.get(s.id))PREC.push({id:s.id,w:2*W,h:H,z:s.z||1,at:PREC_AT});
+  const B=BL&&BLS?BL:0;const m=photoMeta.get(s.id),z=s.z||1;let size=`${2*W}px auto`,bx=0,by=0;if(m&&m.w){const k=Math.max((2*W+2*B)/m.w,(H+2*B)/m.h)*z,iw=m.w*k,ih=m.h*k;size=`${r1(iw)}px ${r1(ih)}px`;bx=(2*W+2*B-iw)*(s.fx??.5)-B;by=(H+2*B-ih)*(s.fy??.5)-B}
+  return`<div class="ph" data-span="2" ${half?'data-half="1"':'data-slot="0"'} style="left:${-B}px;top:${-B}px;width:${W+2*B}px;height:${H+2*B}px;background-image:url('${src}');background-size:${size};background-position:${r1(bx-half*W+B)}px ${r1(by+B)}px"></div>`}
 function capOf(p){return Object.assign({x:.06,y:.95,ax:0,ay:100,style:'shadow'},p.cap||{})}
 const CAP_SPOTS=[[.06,.06,0,0],[.5,.06,50,0],[.94,.06,100,0],[.06,.5,0,50],[.5,.5,50,50],[.94,.5,100,50],[.06,.95,0,100],[.5,.95,50,100],[.94,.95,100,100]];
 function fillEmpty(bk,p,n){const used=new Set(shownIds(bk));const free=(bk.photoIds||[]).filter(id=>!used.has(id));for(let j=0;j<n;j++){if(!p.photos[j]&&free.length){while(p.photos.length<=j)p.photos.push(null);p.photos[j]=slot(free.shift())}}}
@@ -1304,7 +1312,7 @@ function drawCapHandles(){const st=$('#stage');if(!st)return;const c=st.querySel
   const o=document.createElement('div');o.className='cap-ov';Object.assign(o.style,{left:(r.left-sr.left-g)+'px',top:(r.top-sr.top-g)+'px',width:(r.width+2*g)+'px',height:(r.height+2*g)+'px'});
   o.innerHTML=['tl','tr','bl','br'].map(h=>`<i class="c" data-h="${h}" title="Drag to resize the box"></i>`).join('')+['l','r'].map(h=>`<i class="s" data-h="${h}" title="Drag to change the width"></i>`).join('')+['t','b'].map(h=>`<i class="v" data-h="${h}" title="Drag to change the height"></i>`).join('');st.appendChild(o);
   const p=curPage(),cp=capOf(p),cur=p.align||(cp.ax===0?'left':cp.ax===100?'right':'center');const a=document.createElement('div');a.className='align-seg cap-al';a.setAttribute('role','group');a.setAttribute('aria-label','Text alignment');
-  a.innerHTML=[['left','Left'],['center','Centre'],['right','Right'],['justify','Justify']].map(([k,l])=>`<button data-align="${k}" aria-pressed="${cur===k}" aria-label="${l}" title="${l}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">${ALIGN_ICONS[k]}</svg></button>`).join('');st.appendChild(a);
+  a.innerHTML=[['left','Left'],['center','Centre'],['right','Right'],['justify','Justify']].map(([k,l])=>`<button data-align="${k}" aria-pressed="${cur===k}" aria-label="${l}" title="${l}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">${ALIGN_ICONS[k]}</svg></button>`).join('')+(()=>{const info=TXM.get(p);if(!info)return'';const mx=Math.floor(mmOf(info,info.max)*10)/10;return`<label class="cap-mm" title="Text height (capital letters), up to ${mx} mm"><input type="number" inputmode="decimal" step="0.5" min="${Math.min(3,mx)}" max="${mx}" value="${mmOf(info,info.k)}" data-tsmm aria-label="Text height in mm"><span>mm</span></label>`})();st.appendChild(a);
   const ow=a.offsetWidth,oh=a.offsetHeight,cx=r.left-sr.left+r.width/2;let y=r.bottom-sr.top+g+8;if(y+oh>st.clientHeight-30)y=r.top-sr.top-g-8-oh;
   Object.assign(a.style,{left:clamp(cx-ow/2,4,st.clientWidth-ow-4)+'px',top:Math.max(4,y)+'px'})}
 function renderStrip(){
@@ -1396,7 +1404,7 @@ function renderInsp(){
   if(!isCover)h+=`<div class="grp"><span class="lbl">Style</span>`;
   if(hasText&&!isCover){
     if(!isCover&&!isBack)h+=`<label class="note" for="i-font" style="display:block;margin:0 0 4px;font-weight:600;color:var(--ink)">Heading font</label><select class="inp" id="i-font" data-pfont><option value="">Same as cover</option>${Object.entries(FONTS).map(([k,f])=>`<option value="${k}" ${p.font===k?'selected':''}>${f.label}</option>`).join('')}</select>`;
-    h+=mmField('i-ts','data-tsmm',TXM.get(p));
+    if(p.layout!=='full')h+=mmField('i-ts','data-tsmm',TXM.get(p));
     if(!isCover)h+=`<span class="note" style="display:block;margin:10px 0 4px;font-weight:600;color:var(--ink)">Text colour</span>${colorRow('ink',p.ink,['','#1E1E1E','#FFFFFF',P.accent,P.title])}`;
   }
   if(!isCover)h+=`<span class="note" style="display:block;margin:10px 0 4px;font-weight:600;color:var(--ink)">Background</span>${colorRow('bg',p.bg,['','#FFFFFF','#F4EFE6',P.bg,mix(P.bg,'#FFFFFF',.5),'#1E1E1E'])}</div>`;
@@ -1809,9 +1817,18 @@ function openPreview(){
 }
 
 /* ========== Export PDF ========== */
+/* Printed sharpness of every placed photo: pixels of the saved full photo (max 3000 px) over its printed size (pages are 100 px per inch) */
+function lowResList(bk){PREC=[];bk.pages.forEach((p,i)=>{PREC_AT=i?'Page '+i:'Front cover';pageHTML(bk,p,'thumb')});if(bk.back){PREC_AT='Back cover';backHTML(bk,'thumb')}
+  const out=PREC.map(r=>{const m=photoMeta.get(r.id),sc=Math.min(1,3000/Math.max(m.w,m.h)),k=Math.max(r.w/m.w,r.h/m.h)*r.z;return{at:r.at,dpi:Math.round(100*sc/k)}}).filter(r=>r.dpi<200).sort((a,b)=>a.dpi-b.dpi);PREC=null;return out}
+/* Print page: the page sits in a box that is B wider on its bleed sides; the box clips, so the other sides stay at the cut */
+function bleedPart(html,left,w,h,B,sides){const ox=sides.l?B:0;
+  return`<div class="blp" style="position:absolute;left:${r1(left)}px;top:0;width:${r1(w+(sides.l?B:0)+(sides.r?B:0))}px;height:${r1(h+2*B)}px;overflow:hidden">${html.replace(/^<div class="(pg[^"]*)" style="/,`<div class="$1" style="position:absolute;left:${r1(ox)}px;top:${r1(B)}px;overflow:visible;`)}</div>`}
+function bleedFinish(root,B){$$('.blp',root).forEach(bp=>{const pg=bp.firstElementChild;if(!pg)return;bp.style.background=getComputedStyle(pg).backgroundColor;if(!B)return;
+  const W=pg.offsetWidth,H=pg.offsetHeight;$$('.band',pg).forEach(b=>{const L=b.offsetLeft,T=b.offsetTop,w=b.offsetWidth,h=b.offsetHeight;let nl=L,nt=T,nw=w,nh=h;if(L<=.5){nl-=B;nw+=B}if(T<=.5){nt-=B;nh+=B}if(L+w>=W-.5)nw+=B;if(T+h>=H-.5)nh+=B;Object.assign(b.style,{left:nl+'px',top:nt+'px',width:nw+'px',height:nh+'px'})})})}
 async function exportPDF(){
   const bk=S.book;await saveBook();
   if(!window.html2canvas||!window.jspdf){toast('PDF tools did not load. Check your connection and reload once.');return}
+  const low=lowResList(bk);
   const empty=allP(bk).reduce((n,p)=>{const k=slotCount(bk,p);for(let j=0;j<k;j++)if(!p.photos[j]||!photoMeta.get(p.photos[j].id))n++;return n},0);
   const m=document.createElement('div');m.className='modal';
   m.innerHTML=`<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="ex-h"><div class="dlg-h"><h2 id="ex-h">Save as PDF</h2><button class="icon-btn" data-x aria-label="Close">×</button></div><div class="dlg-b">
@@ -1819,51 +1836,64 @@ async function exportPDF(){
     ${empty?`<p style="color:var(--danger);font-weight:600">${empty} photo spot${empty>1?'s are':' is'} still empty and will print as grey.</p>`:''}
     ${(bk.pages.length-1)%2?`<p class="note">This book has an odd number of inside pages. Most printers need an even number.</p>`:''}
     <div class="field" style="margin-top:14px"><span class="lbl">Quality</span><div class="chips" role="group"><button class="chip" data-q="3" aria-pressed="true">For printing (300 dpi)</button><button class="chip" data-q="1.5" aria-pressed="false">For sharing (smaller file)</button></div></div>
+    <div id="ex-print">
+    ${low.length?`<div class="field"><span class="lbl" style="color:var(--danger)">Photos that may print soft</span><span class="hint">${low.slice(0,6).map(r=>`${r.at}: ${r.dpi} dpi${r.dpi<150?' (blurry)':''}`).join(' · ')}${low.length>6?` · and ${low.length-6} more`:''}. 300 dpi is best. Zoom out, use a smaller box or a larger photo.</span></div>`:''}
+    <div class="field"><label class="lbl" for="ex-bl">Bleed</label><div class="mm-row"><input class="inp mm-inp" type="number" id="ex-bl" min="0" max="10" step="0.5" value="3"><span>mm</span></div><span class="hint">Extra picture past the cut edge, so no white lines after trimming. Photo printers usually ask for 3 mm.</span></div>
+    <div class="field"><span class="lbl">Files</span><div class="chips" role="group"><button class="chip" data-files="2" aria-pressed="true">2 files: cover + inside pages</button><button class="chip" data-files="1" aria-pressed="false">1 file</button></div><span class="hint">Photo printers usually ask for 2 files.</span></div>
+    </div>
     <div class="field"><span class="lbl">Cover</span><div class="chips" role="group"><button class="chip" data-cv="sheet" aria-pressed="true">Full cover sheet (back + spine + front)</button><button class="chip" data-cv="front" aria-pressed="false">Front cover only</button></div><span class="hint">The full sheet is what most printers ask for. Spine: ${spineMM(bk)} mm.</span></div>
     <div id="ex-prog" class="hide"><div class="bar"><i></i></div><p class="note" id="ex-st" role="status"></p></div></div>
     <div class="dlg-f"><button class="btn" data-x>Cancel</button><button class="btn primary" data-go>Save PDF</button></div></div>`;
-  document.body.appendChild(m);let q=3,cv='sheet',busy=false,cancel=false;
+  document.body.appendChild(m);let q=3,cv='sheet',files=2,busy=false,cancel=false;
   m.addEventListener('click',async e=>{
     const cvb=e.target.closest('[data-cv]');if(cvb&&!busy){cv=cvb.dataset.cv;$$('[data-cv]',m).forEach(b=>b.setAttribute('aria-pressed',b===cvb));return}
-    const c=e.target.closest('[data-q]');if(c&&!busy){q=+c.dataset.q;$$('[data-q]',m).forEach(b=>b.setAttribute('aria-pressed',b===c));return}
+    const c=e.target.closest('[data-q]');if(c&&!busy){q=+c.dataset.q;$$('[data-q]',m).forEach(b=>b.setAttribute('aria-pressed',b===c));$('#ex-print',m).hidden=q!==3;return}
+    const fb=e.target.closest('[data-files]');if(fb&&!busy){files=+fb.dataset.files;$$('[data-files]',m).forEach(b=>b.setAttribute('aria-pressed',b===fb));return}
     if(e.target.closest('[data-x]')){if(busy){cancel=true;return}m.remove();return}
     if(e.target.closest('[data-go]')&&!busy){busy=true;e.target.closest('[data-go]').disabled=true;$('#ex-prog',m).classList.remove('hide');
-      try{const blob=await buildPDF(bk,q,cv,(k,n)=>{$('#ex-st',m).textContent=`Making page ${k} of ${n}…`;$('.bar i',m).style.width=(k/n*100)+'%';return cancel});
-        if(!blob){m.remove();toast('Stopped.');return}
-        const name=safeName(bk.title)+'.pdf';const file=new File([blob],name,{type:'application/pdf'});
-        const canShare=!!(navigator.canShare&&navigator.canShare({files:[file]}));
-        $('.dlg-b',m).innerHTML=`<p style="margin-top:0;font-weight:600">Your PDF is ready.</p><p class="note">${(blob.size/1048576).toFixed(1)} MB · ${bk.pages.length} pages. Upload it to a photobook printer that accepts PDF files.</p>`;
-        $('.dlg-f',m).innerHTML=`<button class="btn" data-x2>Close</button>${canShare?'<button class="btn" data-share>Share</button>':''}<button class="btn primary" data-dl>Download PDF</button>`;
+      const pr=q===3,bl=pr?clamp(parseFloat($('#ex-bl',m).value)||0,0,10):0,two=pr&&files===2,N=bk.pages.length;
+      const prog=(off)=>(k,n)=>{$('#ex-st',m).textContent=`Making page ${off+k} of ${N}…`;$('.bar i',m).style.width=((off+k)/N*100)+'%';return cancel};
+      try{const out=[];const base=safeName(bk.title);
+        if(two){const c=await buildPDF(bk,q,cv,prog(0),{part:'cover',bleed:bl});if(!c){m.remove();toast('Stopped.');return}out.push({blob:c,name:base+'-cover.pdf',label:'Download cover'});
+          const ins=await buildPDF(bk,q,cv,prog(1),{part:'inside',bleed:bl});if(!ins){m.remove();toast('Stopped.');return}out.push({blob:ins,name:base+'-inside.pdf',label:'Download inside pages'})}
+        else{const one=await buildPDF(bk,q,cv,prog(0),{bleed:bl});if(!one){m.remove();toast('Stopped.');return}out.push({blob:one,name:base+'.pdf',label:'Download PDF'})}
+        const fl=out.map(o=>new File([o.blob],o.name,{type:'application/pdf'}));
+        const canShare=!!(navigator.canShare&&navigator.canShare({files:fl}));const mb=out.reduce((a,o)=>a+o.blob.size,0)/1048576;
+        $('.dlg-b',m).innerHTML=`<p style="margin-top:0;font-weight:600">${two?'Your 2 PDF files are ready.':'Your PDF is ready.'}</p><p class="note">${mb.toFixed(1)} MB · ${N-1} inside pages${pr?` · bleed ${bl} mm`:''}. ${pr?'Upload to a photobook printer that accepts PDF files. Check its page size, bleed and spine width match.':'For sharing on screen, not for printing.'}</p>`;
+        $('.dlg-f',m).innerHTML=`<button class="btn" data-x2>Close</button>${canShare?'<button class="btn" data-share>Share</button>':''}${out.map((o,i)=>`<button class="btn${i===out.length-1?' primary':''}" data-dl="${i}">${o.label}</button>`).join('')}`;
         busy=false;
-        m.addEventListener('click',async ev=>{if(ev.target.closest('[data-x2]'))m.remove();if(ev.target.closest('[data-dl]')){if(await downloadBlob(blob,name)===true)toast('PDF saved.')}if(ev.target.closest('[data-share]')){try{await navigator.share({files:[file],title:bk.title})}catch(er){}}});
+        m.addEventListener('click',async ev=>{if(ev.target.closest('[data-x2]'))m.remove();const d=ev.target.closest('[data-dl]');if(d){const o=out[+d.dataset.dl];if(await downloadBlob(o.blob,o.name)===true)toast('PDF saved.')}if(ev.target.closest('[data-share]')){try{await navigator.share({files:fl,title:bk.title})}catch(er){}}});
       }catch(err){console.error(err);busy=false;$('#ex-st',m).textContent='Could not make the PDF: '+(err&&err.message||err)+'. Try “For sharing” quality.'}
     }
   });
 }
-async function buildPDF(bk,q,cv,progress){
+async function buildPDF(bk,q,cv,progress,opt={}){
   const{W,H,inW,inH}=SIZES[bk.size];const{jsPDF}=window.jspdf;
   try{await Promise.all(Object.values(FONTS).map(f=>document.fonts.load(`${f.w} 40px ${f.css.split(',')[0]}`)));await document.fonts.ready}catch(e){}
+  const part=opt.part||'all',bIn=(opt.bleed||0)/25.4,B=bIn*100;
   const sw=spinePx(bk),sIn=spineMM(bk)/25.4,sheet=cv==='sheet';
-  const fmt0=sheet?[2*inW+sIn,inH]:[inW,inH];
-  const pdf=new jsPDF({unit:'in',format:fmt0,orientation:fmt0[0]>fmt0[1]?'landscape':'portrait',compress:true});
-  const stage=$('#render-stage');
+  const all=bk.pages.map((_,k)=>k),ks=part==='cover'?[0]:part==='inside'?all.slice(1):all;
+  const pdfFmt=k=>k===0&&sheet?[2*inW+sIn+2*bIn,inH+2*bIn]:[inW+2*bIn,inH+2*bIn];
+  let pdf=null;const stage=$('#render-stage');
   const loadFull=async list=>{photoFull.clear();for(const s of list){if(s&&!photoFull.has(s.id)){const f=await store.get('full',s.id);if(f)photoFull.set(s.id,f.data)}}};
+  const shot=async(w,h)=>{await frame();bleedFinish(stage,B);await frame();return html2canvas(stage.firstElementChild,{scale:q,useCORS:true,backgroundColor:'#FFFFFF',logging:false,width:Math.ceil(w),height:Math.ceil(h),windowWidth:Math.max(w,window.innerWidth),windowHeight:Math.max(h,window.innerHeight)})};
+  const draw=(fn,sides,PW)=>{BLS={...sides,W:PW,H};try{return fn()}finally{BLS=null}};
+  BL=B;
   try{
-    for(let k=0;k<bk.pages.length;k++){
-      if(progress(k+1,bk.pages.length))return null;
-      const p=bk.pages[k];
+    for(let n=0;n<ks.length;n++){const k=ks[n];
+      if(progress(n+1,ks.length))return null;
+      const p=bk.pages[k],fmt=pdfFmt(k),ori=fmt[0]>fmt[1]?'landscape':'portrait';
+      if(!pdf)pdf=new jsPDF({unit:'in',format:fmt,orientation:ori,compress:true});else pdf.addPage(fmt,ori);
+      let cvs;
       if(k===0&&sheet){await loadFull([...(p.photos||[]),...((bk.back&&bk.back.photos)||[])]);
-        const TW=2*W+sw;stage.innerHTML=`<div style="position:relative;width:${r1(TW)}px;height:${H}px;display:flex">${backHTML(bk,'full')}${spineHTML(bk)}${pageHTML(bk,p,'full')}</div>`;await frame();
-        const cvs=await html2canvas(stage.firstElementChild,{scale:q,useCORS:true,backgroundColor:'#FFFFFF',logging:false,width:Math.ceil(TW),height:H,windowWidth:Math.max(TW,window.innerWidth),windowHeight:Math.max(H,window.innerHeight)});
-        pdf.addImage(cvs.toDataURL('image/jpeg',.92),'JPEG',0,0,fmt0[0],inH,undefined,'FAST');cvs.width=cvs.height=0;continue}
-      await loadFull(p.photos||[]);
-      stage.innerHTML=pageHTML(bk,p,'full');await frame();
-      const canvas=await html2canvas(stage.firstElementChild,{scale:q,useCORS:true,backgroundColor:'#FFFFFF',logging:false,width:W,height:H,windowWidth:Math.max(W,window.innerWidth),windowHeight:Math.max(H,window.innerHeight)});
-      if(k>0)pdf.addPage([inW,inH],inW>inH?'landscape':'portrait');
-      pdf.addImage(canvas.toDataURL('image/jpeg',.92),'JPEG',0,0,inW,inH,undefined,'FAST');
-      canvas.width=canvas.height=0;
+        const TW=2*W+sw+2*B;
+        const back=bleedPart(draw(()=>backHTML(bk,'full'),{l:1,t:1,b:1},W),0,W,H,B,{l:1}),spine=bleedPart(draw(()=>spineHTML(bk),{t:1,b:1},sw),W+B,sw,H,B,{}),front=bleedPart(draw(()=>pageHTML(bk,p,'full'),{t:1,r:1,b:1},W),W+B+sw,W,H,B,{r:1});
+        stage.innerHTML=`<div style="position:relative;width:${r1(TW)}px;height:${r1(H+2*B)}px">${back}${spine}${front}</div>`;cvs=await shot(TW,H+2*B)}
+      else{await loadFull(p.photos||[]);
+        stage.innerHTML=`<div style="position:relative;width:${r1(W+2*B)}px;height:${r1(H+2*B)}px">${bleedPart(draw(()=>pageHTML(bk,p,'full'),{l:1,t:1,r:1,b:1},W),0,W,H,B,{l:1,r:1})}</div>`;cvs=await shot(W+2*B,H+2*B)}
+      pdf.addImage(cvs.toDataURL('image/jpeg',.92),'JPEG',0,0,fmt[0],fmt[1],undefined,'FAST');cvs.width=cvs.height=0;
     }
-  }finally{stage.innerHTML='';photoFull.clear()}
+  }finally{stage.innerHTML='';photoFull.clear();BL=0;BLS=null}
   return pdf.output('blob');
 }
 
@@ -1953,7 +1983,7 @@ document.addEventListener('input',e=>{
   if(t.dataset.bk){bk[t.dataset.bk]=t.value;if(t.dataset.bk==='title'&&!bk.name)$('.top .title-edit').firstChild.nodeValue=(t.value||'Untitled')+' ';return changed()}
   if(t.dataset.text){p.text[t.dataset.text]=t.value;return changed()}
   if(t.dataset.stop){p.stops[+t.dataset.stop][t.dataset.f]=t.value;return changed()}
-  if('tsmm'in t.dataset){const v=parseFloat(t.value),info=TXM.get(p);if(info&&v>0){p.ts=v/mmOf(info,1);return changed()}return}
+  if('tsmm'in t.dataset){if(t.closest('.cap-al'))return;const v=parseFloat(t.value),info=TXM.get(p);if(info&&v>0){p.ts=v/mmOf(info,1);return changed()}return}
   if(t.dataset.colorpick){const k=t.dataset.colorpick;if(k==='spbg')bk.spine.bg=t.value;else if(k==='spink')bk.spine.ink=t.value;else p[k]=t.value;return changed()}
   if(t.dataset.sppart){const k=t.dataset.sppart;bk.spine.parts=bk.spine.parts||{};bk.spine.parts[k]={...(bk.spine.parts[k]||{}),val:t.value};return changed()}
   if('spmm'in t.dataset){const v=parseFloat(t.value),info=SPM.get(bk);if(info&&v>0){bk.spine.size=v/mmOf(info,1);return changed()}return}

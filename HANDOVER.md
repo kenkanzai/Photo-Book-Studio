@@ -33,6 +33,7 @@ A single-file photobook app (index.html). Installable on phone and laptop from G
 - One photo, one place: a photo can only be on one spot; picking a used photo moves it.
 - Photo zoom: pinch a photo with two fingers to zoom it inside its frame (1× to 3×), the same value as the Zoom slider in the side panel. One finger drags to choose the part that shows. On a laptop, trackpad pinch or Ctrl + mouse wheel on a photo does the same. Inside the page area the browser's own zoom is blocked (stage touch-action: pan-y, Ctrl+wheel prevented), so only the photo zooms.
 - Layouts: ▦ button on each page corner. Photos: tap to change, drag to move the view.
+- Phone: upright shows one page at a time (big enough to edit); turned sideways shows two pages like the open book (onePage(): narrow screen and portrait orientation). Sideways, the page view fills the screen height so the whole spread shows.
 - Book view: the editor shows pages as an open book (cover as a closed book / flat Back | Spine | Front). Preview opens a 3D book you can turn, and pages turn like a real book.
 - Book name: rename on the shelf (pencil next to the name) or in Book settings. Only the shelf name changes; the cover title stays.
 

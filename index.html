@@ -220,6 +220,7 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.45}
   .top .show-sm{display:inline}
   .top{gap:6px}
 }
+@media (max-width:860px) and (orientation:landscape){.stage{height:calc(100dvh - 72px - env(safe-area-inset-top,0px));min-height:220px}}
 
 /* Text alignment buttons */
 .align-seg{display:inline-flex;gap:4px;padding:4px;border-radius:10px;background:var(--surface-2)}
@@ -1113,6 +1114,10 @@ function saveState(t,cls=''){const el=$('#save-st');if(el){el.textContent=t;el.c
 function touch(){if(!S.book)return;dedupe(S.book);clearTimeout(H.timer);H.timer=setTimeout(commitNow,500);updUndo();S.book.updated=Date.now();clearTimeout(saveTimer);saveState('Saving…');saveTimer=setTimeout(saveBook,400)}
 async function saveBook(){if(!S.book)return;try{await store.put('books',JSON.parse(JSON.stringify(S.book)));saveState(store.ok?'Saved ✓':'Not saved: this browser keeps nothing',store.ok?'ok':'bad')}catch(e){saveState('Not saved: storage full','bad');toast('Could not save. Storage may be full.')}}
 const narrow=()=>window.innerWidth<860;
+/* One page at a time only on a narrow screen held upright; turned sideways it shows two pages like the book.
+   Uses the screen's orientation so the keyboard opening does not switch the view. */
+const isLandscape=()=>{const o=screen.orientation&&screen.orientation.type;return o?o.startsWith('landscape'):window.innerWidth>window.innerHeight};
+const onePage=()=>narrow()&&!isLandscape();
 const app=()=>$('#app');
 
 /* ========== Shelf ========== */
@@ -1215,7 +1220,7 @@ function renderEditor(){
 }
 function renderStage(){
   const st=$('#stage');if(!st)return;const bk=S.book,{W,H}=SIZES[bk.size];
-  const n=narrow();const idxs=n?[S.sel]:spreadPages(S.spread);
+  const n=onePage();const idxs=n?[S.sel]:spreadPages(S.spread);
   const aw=st.clientWidth-(n?40:140),ah=st.clientHeight-(n?40:70);
   const cols=idxs.length; // last single page keeps spread size
   const sc=Math.max(.05,Math.min(aw/(W*Math.max(cols,1)),ah/H));
@@ -1242,7 +1247,7 @@ function drawCapHandles(){const st=$('#stage');if(!st)return;const c=st.querySel
 function renderStrip(){
   const sp=$('#strip');if(!sp)return;const bk=S.book,{W,H}=SIZES[bk.size];const sc=74/H;
   sp.innerHTML=bk.pages.map((p,i)=>`<div class="thumb" role="button" tabindex="0" data-sel="${i}" aria-current="${i===S.sel}" aria-label="${i?'Page '+i+'. Drag to move.':'Cover'}">${boxHTML(bk,p,sc,'thumb')}<span>${i?i:'Cover'}</span>${i&&!p.quote?`<button class="thumb-x" data-delpage="${i}" aria-label="Delete page ${i}">×</button>`:''}</div>`).join('')+`<button class="thumb-add" data-act="addpage">+ Page</button>`;
-  const cur=sp.querySelector('[aria-current="true"]');cur&&cur.scrollIntoView({block:'nearest',inline:'nearest'});
+  const cur=sp.querySelector('[aria-current="true"]');if(cur){const a=cur.offsetLeft-sp.offsetLeft,b=a+cur.offsetWidth;if(a<sp.scrollLeft)sp.scrollLeft=a-8;else if(b>sp.scrollLeft+sp.clientWidth)sp.scrollLeft=b-sp.clientWidth+8}
 }
 function refreshThumb(i){const sp=$('#strip');if(!sp)return;const el=sp.querySelector(`[data-sel="${i}"]`);if(!el)return renderStrip();const bk=S.book,{H}=SIZES[bk.size];el.firstElementChild.outerHTML=boxHTML(bk,bk.pages[i],74/H,'thumb')}
 let thumbTimer=null;
@@ -1812,8 +1817,8 @@ document.addEventListener('click',async e=>{
     case 'book':return openBookSettings();
     case 'preview':return openPreview();
     case 'export':return exportPDF();
-    case 'prev':if(narrow())return select(S.sel-1);S.spread=Math.max(0,S.spread-1);return select(S.spread===0?0:realPages(spreadPages(S.spread))[0]);
-    case 'next':if(narrow())return select(S.sel+1);S.spread=Math.min(spreadCount()-1,S.spread+1);return select(realPages(spreadPages(S.spread))[0]);
+    case 'prev':if(onePage())return select(S.sel-1);S.spread=Math.max(0,S.spread-1);return select(S.spread===0?0:realPages(spreadPages(S.spread))[0]);
+    case 'next':if(onePage())return select(S.sel+1);S.spread=Math.min(spreadCount()-1,S.spread+1);return select(realPages(spreadPages(S.spread))[0]);
     case 'addpage':{const np=newPage('full');bk.pages.splice(S.sel+1,0,np);touch();select(S.sel+1);return}
     case 'dup':{const c=JSON.parse(JSON.stringify(p));c.id=uid();c.stickers.forEach(s=>s.id=uid());bk.pages.splice(S.sel+1,0,c);touch();select(S.sel+1);return}
     case 'undo':return undo();

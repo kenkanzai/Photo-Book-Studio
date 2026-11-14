@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- No internet permission: the app works fully offline and sends nothing anywhere. -->
+    <!-- Internet is used only by AI enhance (sends the chosen photo to Google Gemini). Everything else works offline. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="Photobook Studio"
         android:icon="@mipmap/ic_launcher"

@@ -166,6 +166,9 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.45}
 .stage .nav{position:absolute;top:50%;transform:translateY(-50%);z-index:3;box-shadow:0 1px 4px rgba(0,0,0,.18)}
 .stage .nav:disabled{opacity:.35;cursor:default}
 .stage .nav.prev{left:12px}.stage .nav.next{right:12px}
+.stage .zw{position:absolute;inset:0;overflow:auto;display:flex;padding:20px;touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch}
+.stage .zw>.book{margin:auto;flex:none}
+.stage .zoom-fit{position:absolute;top:10px;right:10px;z-index:4;box-shadow:0 1px 4px rgba(0,0,0,.18)}
 .stage .pos{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:13px;font-weight:600;color:var(--muted)}
 .strip{grid-column:1;grid-row:2;display:flex;gap:10px;align-items:flex-end;overflow-x:auto;padding:12px 16px;border-top:1px solid var(--line);background:var(--bg)}
 .thumb{position:relative;cursor:pointer;touch-action:pan-x;user-select:none;-webkit-user-select:none;border:0;background:none;padding:0;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;color:var(--muted);font-weight:600}
@@ -188,6 +191,12 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.45}
 .slot .fx .dot{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.5);pointer-events:none}
 .slot .fx.none{cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted);font-weight:600;font-size:13px;border:1.5px dashed var(--muted);background:transparent}
 .slot .acts{display:flex;gap:4px}
+.slot .acts button.on{background:var(--accent-soft);border-color:var(--accent)}
+.en-ims{display:grid;grid-template-columns:1fr 1fr;gap:10px}.en-ims figure{margin:0;min-width:0}.en-ims figcaption{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:4px}
+.en-ims canvas{width:100%;height:auto;display:block;border-radius:8px;background:var(--surface-2)}.en-wrap{position:relative}
+.en-busy{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;background:rgba(10,12,11,.55);color:#fff;font-weight:600;font-size:14px;border-radius:8px}
+.dlg [hidden]{display:none!important}
+@media (max-width:520px){.en-ims{grid-template-columns:1fr}}
 .slot .acts button{flex:1;min-height:30px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-size:12px;font-weight:600}
 .range{display:flex;align-items:center;gap:10px}
 .range input{flex:1;accent-color:var(--accent)}
@@ -207,6 +216,7 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.45}
 @media (max-width:860px){
   .ed{display:flex;flex-direction:column;height:auto}
   .stage{height:62vh;min-height:320px;padding:12px}
+  .stage .zw{padding:12px}
   .strip{order:2}
   .insp{order:3;border-left:0;border-top:1px solid var(--line)}
   .top .hide-sm{display:none}
@@ -1209,13 +1219,15 @@ function renderEditor(){
 function renderStage(){
   const st=$('#stage');if(!st)return;const bk=S.book,{W,H}=SIZES[bk.size];
   const n=narrow();const idxs=n?[S.sel]:spreadPages(S.spread);
+  const zk=(n?'p'+S.sel:'s'+S.spread);if(S.zoomKey!==zk){S.zoomKey=zk;S.zoom=1}const Z=S.zoom||1;
+  const oz=$('#zw',st),keep=oz&&Z>1?[oz.scrollLeft,oz.scrollTop]:null;
   const aw=st.clientWidth-(n?40:140),ah=st.clientHeight-(n?40:70);
   const cols=idxs.length; // last single page keeps spread size
-  const sc=Math.max(.05,Math.min(aw/(W*Math.max(cols,1)),ah/H));
+  const sc=Math.max(.05,Math.min(aw/(W*Math.max(cols,1)),ah/H))*Z;
   const P=pal(bk.cover.palette),board=mix(P.bg,'#000000',.3);
   let boxes;
   const lb=(i,side)=>`<button class="lay-btn ${side}" data-laybtn="${i}" aria-label="Change layout"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg></button>`;
-  if(idxs.length===1&&idxs[0]===0){const sw=spinePx(bk),fsc=Math.max(.05,Math.min(aw/(2*W+sw),ah/H)),pt=S.coverPart||'front';
+  if(idxs.length===1&&idxs[0]===0){const sw=spinePx(bk),fsc=Math.max(.05,Math.min(aw/(2*W+sw),ah/H))*Z,pt=S.coverPart||'front';
     const tag=(t)=>`<span class="part-tag">${t}</span>`;
     boxes=`<div class="book flat">${scaleWrap(backHTML(bk,'med'),fsc,W,H,'data-part="back"',' part'+(pt==='back'?' sel':''),tag('Back'))}${scaleWrap(spineHTML(bk),fsc,sw,H,'data-part="spine"',' part spine-box'+(pt==='spine'?' sel':''),tag('Spine'))}${boxHTML(bk,bk.pages[0],fsc,'med','data-pi="0" data-part="front"',' part'+(pt==='front'?' sel':''),lb(0,'r')+tag('Front'))}</div>`;
     st.dataset.scale=fsc}
@@ -1224,13 +1236,14 @@ function renderStage(){
   const total=spreadCount();
   const label=n?(S.sel===0?'Outside of the book: tap back, spine or front to edit':`Page ${S.sel} of ${bk.pages.length-1}`):(S.spread===0?'Outside of the book: tap back, spine or front to edit':(realPages(idxs).length>1?`Pages ${realPages(idxs).join('–')}`:`Page ${realPages(idxs)[0]}`)+` of ${bk.pages.length-1}`);
   const canPrev=n?S.sel>0:S.spread>0,canNext=n?S.sel<bk.pages.length-1:S.spread<total-1;
-  st.innerHTML=`${boxes}<button class="icon-btn nav prev" data-act="prev" aria-label="Previous" ${canPrev?'':'disabled'}>‹</button><button class="icon-btn nav next" data-act="next" aria-label="Next" ${canNext?'':'disabled'}>›</button><div class="pos">${label}</div>`;
+  st.innerHTML=`<div class="zw" id="zw">${boxes}</div>${Z>1.01?'<button class="btn small zoom-fit" data-act="zoomfit">Fit page</button>':''}<button class="icon-btn nav prev" data-act="prev" aria-label="Previous" ${canPrev?'':'disabled'}>‹</button><button class="icon-btn nav next" data-act="next" aria-label="Next" ${canNext?'':'disabled'}>›</button><div class="pos">${label}</div>`;
+  if(keep){const z=$('#zw',st);z.scrollLeft=keep[0];z.scrollTop=keep[1]}
   if(!(idxs.length===1&&idxs[0]===0))st.dataset.scale=sc;
   if(S.stickerSel){const el=st.querySelector(`.pgbox.sel .st[data-sid="${S.stickerSel}"]`);el&&el.classList.add('on')}
   drawCapHandles();
 }
-function drawCapHandles(){const st=$('#stage');if(!st)return;const c=st.querySelector('.pgbox.sel .pg .cap');if(!c)return;const sr=st.getBoundingClientRect(),r=c.getBoundingClientRect(),g=5;
-  const o=document.createElement('div');o.className='cap-ov';Object.assign(o.style,{left:(r.left-sr.left-g)+'px',top:(r.top-sr.top-g)+'px',width:(r.width+2*g)+'px',height:(r.height+2*g)+'px'});
+function drawCapHandles(){const st=$('#zw');if(!st)return;const c=st.querySelector('.pgbox.sel .pg .cap');if(!c)return;const sr=st.getBoundingClientRect(),r=c.getBoundingClientRect(),g=5;
+  const o=document.createElement('div');o.className='cap-ov';Object.assign(o.style,{left:(r.left-sr.left+st.scrollLeft-g)+'px',top:(r.top-sr.top+st.scrollTop-g)+'px',width:(r.width+2*g)+'px',height:(r.height+2*g)+'px'});
   o.innerHTML=['tl','tr','bl','br'].map(h=>`<i class="c" data-h="${h}" title="Drag to resize the box"></i>`).join('')+['l','r'].map(h=>`<i class="s" data-h="${h}" title="Drag to change the width"></i>`).join('')+['t','b'].map(h=>`<i class="v" data-h="${h}" title="Drag to change the height"></i>`).join('');st.appendChild(o)}
 function renderStrip(){
   const sp=$('#strip');if(!sp)return;const bk=S.book,{W,H}=SIZES[bk.size];const sc=74/H;
@@ -1282,7 +1295,7 @@ function renderInsp(){
       <div class="grp"><label class="lbl" for="sp-mm">Spine width (mm)</label><input class="inp" id="sp-mm" type="number" min="3" max="60" step="0.5" data-sp-mm value="${sp.mm||''}" placeholder="${spineMM({...bk,spine:{}})}" style="max-width:140px"><p class="note">Empty = ${spineMM({...bk,spine:{}})} mm, worked out from ${bk.pages.length-1} pages. Type the width your printer gives you for an exact fit.</p></div>`;
     el.innerHTML=h;const pv=$('#sp-prev');if(pv)pv.scrollLeft=(pv.scrollWidth-pv.clientWidth)/2;return}
   const photosHTML=()=>{if(!nSlots)return'';return`<div class="grp"><span class="lbl">${isCover?'Cover photo':isBack?'Photo':'Photos'}</span><div class="slots">${Array.from({length:nSlots},(_,i)=>{const s=p.photos[i];const src=s&&photoSrc(s.id,'thumb');
-      return src?`<div class="slot"><div class="fx" data-focus="${i}" style="background-image:url('${src}')" title="Tap the part of the photo to keep in view"><span class="dot" style="left:${(s.fx??.5)*100}%;top:${(s.fy??.5)*100}%"></span></div><label class="note" style="margin:0" for="z-${i}">Zoom</label><input type="range" id="z-${i}" min="1" max="3" step="0.05" value="${s.z||1}" data-zoom="${i}" style="accent-color:var(--accent)"><div class="acts"><button data-pick="${i}">Change</button><button data-unslot="${i}" aria-label="Remove photo ${i+1}">✕</button></div></div>`
+      return src?`<div class="slot"><div class="fx" data-focus="${i}" style="background-image:url('${src}')" title="Tap the part of the photo to keep in view"><span class="dot" style="left:${(s.fx??.5)*100}%;top:${(s.fy??.5)*100}%"></span></div><label class="note" style="margin:0" for="z-${i}">Zoom</label><input type="range" id="z-${i}" min="1" max="3" step="0.05" value="${s.z||1}" data-zoom="${i}" style="accent-color:var(--accent)"><div class="acts"><button data-pick="${i}">Change</button><button data-enh="${s.id}" ${photoMeta.get(s.id)?.enh?'class="on"':''}>${photoMeta.get(s.id)?.enh?'✦ '+enhLabel(photoMeta.get(s.id).enh):'Enhance'}</button><button data-unslot="${i}" aria-label="Remove photo ${i+1}">✕</button></div></div>`
       :`<div class="slot"><button class="fx none" data-pick="${i}">+ Photo</button></div>`}).join('')}</div>${isCover&&bk.cover.style==='photo'?`<label class="note" for="i-phh" style="display:block;margin:12px 0 4px;font-weight:600;color:var(--ink)">Photo size</label><div class="range"><input type="range" id="i-phh" min="0.4" max="1" step="0.02" value="${bk.cover.phH||.74}" data-phh><span id="phh-v">${Math.round((bk.cover.phH||.74)*100)}%</span></div><p class="note">100% fills the whole cover.</p>`:''}<p class="note">Drag the photo on the page to choose the part that shows.</p></div>`};
   if(isCover){
     h+=`${photosHTML()}
@@ -1392,6 +1405,7 @@ function openBookSettings(){
     <div class="field"><label class="lbl" for="bs-name">Book name</label><input class="inp" id="bs-name" data-bname value="${esc(bookName(bk))}" maxlength="80"><span class="hint">The name on your shelf. The cover title doesn't change.</span></div>
     <div class="field"><span class="lbl">Book size</span><div class="chips">${Object.entries(SIZES).map(([k,v])=>`<button class="chip" data-bsize="${k}" aria-pressed="${bk.size===k}">${v.label} ${v.dim}</button>`).join('')}</div><span class="hint">Changing size keeps your photos and words; layouts adjust.</span></div>
     <div class="field"><span class="lbl">Book type</span><div class="chips">${Object.entries(TYPES).map(([k,v])=>`<button class="chip" data-btype="${k}" aria-pressed="${bk.type===k}">${v.label}</button>`).join('')}</div><span class="hint">Changes how the spine text is written.</span></div>
+    <div class="field"><span class="lbl">Photos</span><span class="hint">Improve every photo at once: Auto on this device, or AI online.</span><div><button class="btn small" data-enhall>Enhance all photos</button></div></div>
     <div class="field"><span class="lbl">Backup</span><span class="hint">Save this book with its photos as one file, locked with a password if you like. Open it on your phone or laptop with Backup → “Open backup file” on the shelf.</span><div><button class="btn small" data-backup>Save backup file</button></div></div>
     <div class="field"><span class="lbl">Delete</span><div><button class="btn small danger" data-del>Delete this book</button></div></div>
   </div></div>`;
@@ -1402,11 +1416,145 @@ function openBookSettings(){
     const s=e.target.closest('[data-bsize]');if(s){bk.size=s.dataset.bsize;touch();close();renderEditor();return}
     const t=e.target.closest('[data-btype]');if(t){bk.type=t.dataset.btype;touch();close();openBookSettings();return}
     if(e.target.closest('[data-backup]')){close();saveBackup(bk);return}
+    if(e.target.closest('[data-enhall]')){close();openEnhanceAll(bk);return}
     if(e.target.closest('[data-del]')){if(!confirm(`Delete “${bk.title||'Untitled'}” and its photos from this device?`))return;close();clearTimeout(saveTimer);bk.deleted=Date.now();await store.put('books',JSON.parse(JSON.stringify(bk)));S.book=null;await showShelf();
       const tm=setTimeout(()=>{deleteBook(bk)},10000);toastAction(`“${bk.title||'Untitled'}” deleted.`,'Undo',async()=>{clearTimeout(tm);delete bk.deleted;await store.put('books',JSON.parse(JSON.stringify(bk)));showShelf();toast('Book restored.')},10000)}
   });
 }
 async function deleteBook(bk){const cur=await store.get('books',bk.id);if(cur&&!cur.deleted)return;for(const id of bk.photoIds||[]){await store.del('photos',id);await store.del('full',id);photoMeta.delete(id)}await store.del('books',bk.id);S.book=null}
+
+/* ========== Photo enhance ==========
+   Auto looks run on the device (offline). AI enhance sends the photo to Google Gemini with the user's own key.
+   The original is kept in the 'full' record as .orig, so Off always brings it back. */
+const LOOKS={auto:'Auto',vivid:'Vivid',warm:'Warm',cool:'Cool',bw:'B&W'};
+const AI_DEF_MODEL='gemini-2.5-flash-image';
+function aiCfg(){try{return JSON.parse(localStorage.getItem('pbs-ai')||'{}')}catch(e){return{}}}
+function aiSave(c){try{localStorage.setItem('pbs-ai',JSON.stringify(c))}catch(e){}}
+function toCanvas(img,max){const s=Math.min(1,max/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));const c=document.createElement('canvas');c.width=Math.max(1,Math.round((img.naturalWidth||img.width)*s));c.height=Math.max(1,Math.round((img.naturalHeight||img.height)*s));const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(img,0,0,c.width,c.height);return c}
+function lookCanvas(srcC,look,k){
+  const W=srcC.width,H=srcC.height,c=document.createElement('canvas');c.width=W;c.height=H;const o=c.getContext('2d');o.drawImage(srcC,0,0);
+  if(!look||k<=0)return c;
+  const d=o.getImageData(0,0,W,H),p=d.data,N=W*H,orig=new Uint8ClampedArray(p);
+  const hist=[0,1,2].map(()=>new Uint32Array(256));for(let i=0;i<p.length;i+=4){hist[0][p[i]]++;hist[1][p[i+1]]++;hist[2][p[i+2]]++}
+  const pct=(h,q)=>{let s=0,t=N*q;for(let v=0;v<256;v++){s+=h[v];if(s>=t)return v}return 255};
+  const lo=hist.map(h=>pct(h,.005)),hi=hist.map(h=>pct(h,.995));
+  const lut=[0,1,2].map(ch=>{const a=new Float32Array(256);for(let v=0;v<256;v++)a[v]=clamp((v-lo[ch])/Math.max(1,hi[ch]-lo[ch]),0,1);return a});
+  let mean=0,cnt=0;for(let i=0;i<p.length;i+=16){mean+=lut[0][p[i]]*.3+lut[1][p[i+1]]*.59+lut[2][p[i+2]]*.11;cnt++}mean/=cnt;
+  const gam=Math.log(.47)/Math.log(clamp(mean,.1,.9));
+  const vib={auto:.35,vivid:.8,warm:.35,cool:.3,bw:0}[look],con={auto:.12,vivid:.25,warm:.12,cool:.12,bw:.22}[look];
+  const tint={warm:[1.06,1.01,.9],cool:[.93,1,1.07]}[look]||[1,1,1];
+  const gl=new Float32Array(256);for(let v=0;v<256;v++)gl[v]=v/255;
+  const sc=x=>x-con*(x-x*x)*(2*x-1)*2;
+  for(let i=0;i<p.length;i+=4){let r=Math.pow(lut[0][p[i]],gam),g=Math.pow(lut[1][p[i+1]],gam),b=Math.pow(lut[2][p[i+2]],gam);
+    r=sc(r);g=sc(g);b=sc(b);const l=r*.3+g*.59+b*.11;
+    if(look==='bw'){r=g=b=sc(l)}else{const sat=Math.max(r,g,b)-Math.min(r,g,b),f=1+vib*(1-sat);r=(l+(r-l)*f)*tint[0];g=(l+(g-l)*f)*tint[1];b=(l+(b-l)*f)*tint[2]}
+    p[i]=orig[i]+(r*255-orig[i])*k;p[i+1]=orig[i+1]+(g*255-orig[i+1])*k;p[i+2]=orig[i+2]+(b*255-orig[i+2])*k}
+  o.putImageData(d,0,0);
+  /* clarity: unsharp mask with a cheap blur (draw small, then large) */
+  const sm=document.createElement('canvas');sm.width=Math.max(1,W>>2);sm.height=Math.max(1,H>>2);sm.getContext('2d').drawImage(c,0,0,sm.width,sm.height);
+  const bl=document.createElement('canvas');bl.width=W;bl.height=H;const bx=bl.getContext('2d');bx.imageSmoothingQuality='high';bx.drawImage(sm,0,0,W,H);
+  const bd=bx.getImageData(0,0,W,H).data,d2=o.getImageData(0,0,W,H),q=d2.data,am=.35*k;
+  for(let i=0;i<q.length;i+=4){q[i]+=(q[i]-bd[i])*am;q[i+1]+=(q[i+1]-bd[i+1])*am;q[i+2]+=(q[i+2]-bd[i+2])*am}
+  o.putImageData(d2,0,0);return c}
+const ASPECTS=[['1:1',1],['4:3',4/3],['3:4',3/4],['3:2',3/2],['2:3',2/3],['16:9',16/9],['9:16',9/16],['5:4',5/4],['4:5',4/5],['21:9',21/9]];
+function aiPrompt(extra){return 'Edit this photo like a professional photo editor preparing it for a printed photobook: correct the white balance and exposure, recover shadows and highlights, improve contrast, colour and clarity, reduce noise and sharpen gently. Keep it realistic and natural, like a real camera photo. Keep the same framing and composition, and keep every person, face, expression and detail exactly as they are'+(extra?'. Also do this: '+extra+'. Apart from that request, do not add, remove or change anything.':'; do not add, remove or change anything.')+' Return only the edited photo.'}
+async function aiEnhance(srcC,extra){
+  const cfg=aiCfg();if(!cfg.key)throw new Error('nokey');
+  if(!navigator.onLine)throw new Error('offline');
+  const c=toCanvas(srcC,2048),b64=c.toDataURL('image/jpeg',.92).split(',')[1],ar=c.width/c.height;
+  const asp=ASPECTS.reduce((a,x)=>Math.abs(Math.log(x[1]/ar))<Math.abs(Math.log(a[1]/ar))?x:a)[0];
+  const model=(cfg.model||AI_DEF_MODEL).trim();
+  const call=async withAsp=>{const gc={responseModalities:['TEXT','IMAGE']};if(withAsp)gc.imageConfig={aspectRatio:asp};
+    return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':cfg.key},
+      body:JSON.stringify({contents:[{parts:[{text:aiPrompt(extra)},{inlineData:{mimeType:'image/jpeg',data:b64}}]}],generationConfig:gc})})};
+  let res;try{res=await call(true);if(res.status===400){const t=await res.clone().text();if(/imageConfig|aspect/i.test(t))res=await call(false)}}catch(e){throw new Error('network')}
+  let j={};try{j=await res.json()}catch(e){}
+  if(!res.ok){const m=(j.error&&j.error.message)||'';if(res.status===400&&/api key/i.test(m)||res.status===401||res.status===403)throw new Error('badkey');if(res.status===404)throw new Error('model');if(res.status===429)throw new Error('quota');throw new Error('server:'+(m||res.status))}
+  const parts=(j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts)||[];
+  const im=parts.find(x=>x.inlineData||x.inline_data);if(!im)throw new Error('noimage');const dd=im.inlineData||im.inline_data;
+  return loadImg(`data:${dd.mimeType||dd.mime_type||'image/png'};base64,${dd.data}`)}
+function aiErr(e){const m=String(e&&e.message||e);return m==='nokey'?'Add your Gemini key first.':m==='offline'||m==='network'?'No internet connection. AI enhance needs internet.':m==='badkey'?'Google did not accept the key. Check it in AI settings.':m==='model'?'That AI model was not found. Check the model name in AI settings.':m==='quota'?'Google says the limit for your key is reached. Try again later or check your Google AI Studio plan.':m==='noimage'?'The AI did not send back a photo. Try again, or change the request.':'The AI could not edit this photo ('+m.replace(/^server:/,'')+').'}
+/* Save the result: full, medium and small sizes are replaced; the original stays in full.orig */
+async function applyEnh(id,img,info){
+  const f=await store.get('full',id),rec=await store.get('photos',id);if(!f||!rec)return;
+  const orig=f.orig||f.data;
+  if(!img){if(!f.orig)return;const o=await loadImg(f.orig);await store.put('full',{id,data:f.orig});Object.assign(rec,{w:o.naturalWidth,h:o.naturalHeight,thumb:scaleTo(o,360,.8),med:scaleTo(o,1400,.85)});delete rec.enh}
+  else{await store.put('full',{id,data:scaleTo(img,3000,.9),orig});Object.assign(rec,{w:img.naturalWidth,h:img.naturalHeight,thumb:scaleTo(img,360,.8),med:scaleTo(img,1400,.85),enh:info})}
+  await store.put('photos',rec);photoMeta.set(id,rec);photoFull.delete(id)}
+async function origImg(id){const f=await store.get('full',id);return f?loadImg(f.orig||f.data):null}
+async function lookImg(id,look,k){const o=await origImg(id);if(!o)return null;return loadImg(lookCanvas(toCanvas(o,3000),look,k).toDataURL('image/jpeg',.92))}
+function enhLabel(e){return !e?'':e.ai?'AI':(LOOKS[e.look]||'')}
+function aiSettingsHTML(cfg){return`<div class="field" style="margin-top:12px"><label class="lbl" for="ai-key">Your Gemini key</label><input class="inp" id="ai-key" type="password" autocomplete="off" value="${esc(cfg.key||'')}" placeholder="Paste your key here"><span class="hint">Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. It stays on this device. Google may charge for use beyond its free limit.</span></div>
+  <div class="field"><label class="lbl" for="ai-model">AI model</label><input class="inp" id="ai-model" value="${esc(cfg.model||'')}" placeholder="${AI_DEF_MODEL}"><span class="hint">Empty = ${AI_DEF_MODEL}. Type a newer Gemini image model name here if Google releases one.</span></div>`}
+function openEnhance(id){
+  const rec=photoMeta.get(id);if(!rec)return;
+  const m=document.createElement('div');m.className='modal';
+  const st={mode:rec.enh?(rec.enh.ai?'ai':rec.enh.look):'auto',k:rec.enh&&!rec.enh.ai?rec.enh.k:.7,ai:null,busy:false,set:false};
+  m.innerHTML=`<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="en-h"><div class="dlg-h"><h2 id="en-h">Enhance photo</h2><button class="icon-btn" data-x aria-label="Close">×</button></div><div class="dlg-b">
+    <div class="en-ims"><figure><figcaption>Before</figcaption><canvas id="en-b"></canvas></figure><figure><figcaption id="en-al">After</figcaption><div class="en-wrap"><canvas id="en-a"></canvas><div class="en-busy" id="en-busy" hidden>AI is editing your photo…</div></div></figure></div>
+    <div class="field" style="margin-top:12px"><span class="lbl">Look</span><div class="chips" id="en-looks"><button class="chip" data-look="off">Off</button>${Object.entries(LOOKS).map(([k,l])=>`<button class="chip" data-look="${k}">${l}</button>`).join('')}<button class="chip" data-look="ai">AI ✦</button></div><span class="hint" id="en-hint"></span></div>
+    <div class="field" id="en-kf"><label class="lbl" for="en-k">Strength</label><div class="range"><input type="range" id="en-k" min="0.1" max="1" step="0.05" value="${st.k}"><span id="en-kv">${Math.round(st.k*100)}%</span></div></div>
+    <div id="en-aif" hidden><div class="field"><label class="lbl" for="en-x">Ask for something extra (optional)</label><input class="inp" id="en-x" placeholder="Brighter sky, remove the people in the back"><span class="hint">Your photo is sent to Google to be edited. Check the result before you keep it: AI can change small details.</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small primary" data-aigo>Enhance with AI</button><button class="btn small ghost" data-aiset>AI settings</button></div><div id="en-set" hidden></div></div>
+  </div><div class="dlg-f"><button class="btn" data-hold>Hold to compare</button><button class="btn" data-x>Cancel</button><button class="btn primary" data-apply>Keep</button></div></div>`;
+  document.body.appendChild(m);const close=()=>m.remove();
+  const cb=$('#en-b',m),ca=$('#en-a',m);let srcC=null;
+  const draw=(c,cv)=>{cv.width=c.width;cv.height=c.height;cv.getContext('2d').drawImage(c,0,0)};
+  const hint=t=>$('#en-hint',m).textContent=t||'';
+  const render=()=>{if(!srcC)return;$$('#en-looks .chip',m).forEach(b=>b.setAttribute('aria-pressed',b.dataset.look===st.mode));
+    const isAI=st.mode==='ai';$('#en-kf',m).hidden=isAI||st.mode==='off';$('#en-aif',m).hidden=!isAI;$('#en-al',m).textContent=st.mode==='off'?'After · original':'After · '+(isAI?'AI':LOOKS[st.mode]);
+    if(isAI){if(st.ai){draw(toCanvas(st.ai,900),ca);const lw=Math.max(st.ai.naturalWidth,st.ai.naturalHeight);hint(lw<2000?`AI result is ${st.ai.naturalWidth}×${st.ai.naturalHeight} px: fine on screen and for smaller photos; a full-page print may look a little soft.`:'')}else{draw(srcC,ca);hint(aiCfg().key?'Tap “Enhance with AI”.':'Add your Gemini key in AI settings first.')}return}
+    hint('');draw(st.mode==='off'?srcC:lookCanvas(srcC,st.mode,st.k),ca)};
+  (async()=>{const o=await origImg(id);if(!o){close();return}srcC=toCanvas(o,900);draw(srcC,cb);render();if(st.mode==='ai'&&rec.enh&&rec.enh.ai){st.ai=await loadImg(photoSrc(id,'med'));render()}})();
+  const showSet=()=>{const s=$('#en-set',m);s.hidden=false;s.innerHTML=aiSettingsHTML(aiCfg())+'<button class="btn small" data-aisave>Save AI settings</button>'};
+  const k=$('#en-k',m);k.addEventListener('input',()=>{st.k=+k.value;$('#en-kv',m).textContent=Math.round(st.k*100)+'%';render()});
+  const hold=$('[data-hold]',m);
+  hold.addEventListener('pointerdown',()=>{if(srcC)draw(srcC,ca)});['pointerup','pointerleave','pointercancel'].forEach(ev=>hold.addEventListener(ev,()=>render()));
+  m.addEventListener('click',async e=>{
+    if(e.target===m||e.target.closest('[data-x]')){if(!st.busy)close();return}
+    const lb=e.target.closest('[data-look]');if(lb){st.mode=lb.dataset.look;render();if(st.mode==='ai'&&!aiCfg().key)showSet();return}
+    if(e.target.closest('[data-aiset]')){const s=$('#en-set',m);if(!s.hidden){s.hidden=true;return}showSet();return}
+    if(e.target.closest('[data-aisave]')){aiSave({key:$('#ai-key',m).value.trim(),model:$('#ai-model',m).value.trim()});$('#en-set',m).hidden=true;toast('AI settings saved.');render();return}
+    if(e.target.closest('[data-aigo]')){if(st.busy)return;if(!aiCfg().key){showSet();toast('Add your Gemini key first.');return}
+      st.busy=true;$('#en-busy',m).hidden=false;e.target.disabled=true;
+      try{const o=await origImg(id);st.ai=await aiEnhance(toCanvas(o,3000),$('#en-x',m).value.trim());const g=$('[data-aigo]',m);g.textContent='Try again';g.classList.remove('primary')}catch(er){toast(aiErr(er))}
+      st.busy=false;$('#en-busy',m).hidden=true;e.target.disabled=false;render();return}
+    if(e.target.closest('[data-apply]')){if(st.busy)return;
+      if(st.mode==='ai'&&!st.ai){toast('Tap “Enhance with AI” first, or pick another look.');return}
+      e.target.disabled=true;toast('Saving…');
+      try{if(st.mode==='off')await applyEnh(id,null);else if(st.mode==='ai'){if(!(rec.enh&&rec.enh.ai&&st.ai.src===photoSrc(id,'med')))await applyEnh(id,st.ai,{ai:true,model:(aiCfg().model||AI_DEF_MODEL)})}
+        else await applyEnh(id,await lookImg(id,st.mode,st.k),{look:st.mode,k:st.k})}catch(er){toast(er&&er.name==='QuotaExceededError'?'Storage is full. Delete a book first.':'Could not save the photo.');e.target.disabled=false;return}
+      close();touch();renderStage();renderInsp();renderStrip();toast(st.mode==='off'?'Original photo back.':'Photo enhanced.')}
+  });
+}
+/* Book settings: all photos at once */
+function openEnhanceAll(bk){
+  const m=document.createElement('div');m.className='modal';
+  m.innerHTML=`<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="ea-h"><div class="dlg-h"><h2 id="ea-h">Enhance all photos</h2><button class="icon-btn" data-x aria-label="Close">×</button></div><div class="dlg-b">
+    <p class="note" style="margin-top:0">Photos you already enhanced are skipped. The originals are kept, so you can go back any time.</p>
+    <div class="field"><span class="lbl">Auto (on this device)</span><span class="hint">Free and offline. Fixes colour, light and contrast.</span><div><button class="btn small primary" data-ea="auto">Auto enhance all</button></div></div>
+    <div class="field"><span class="lbl">AI (online)</span><span class="hint">Each photo is sent to Google Gemini with your key, one by one. Takes longer and may cost money beyond Google's free limit.</span><div><button class="btn small" data-ea="ai">AI enhance all</button></div></div>
+    <div class="field"><span class="lbl">Undo</span><div><button class="btn small" data-ea="off">Put all originals back</button></div></div>
+  </div></div>`;
+  document.body.appendChild(m);const close=()=>m.remove();
+  m.addEventListener('click',async e=>{
+    if(e.target===m||e.target.closest('[data-x]'))return close();
+    const b=e.target.closest('[data-ea]');if(!b)return;const mode=b.dataset.ea;
+    if(mode==='ai'&&!aiCfg().key){toast('Add your Gemini key first: open a photo, tap Enhance, then AI settings.');return}
+    await ensurePhotos(bk.photoIds);
+    const ids=bk.photoIds.filter(id=>{const r=photoMeta.get(id);return mode==='off'?r&&r.enh:r&&!r.enh});
+    if(!ids.length){toast(mode==='off'?'No enhanced photos in this book.':'All photos are already enhanced.');return}
+    if(mode==='ai'&&!confirm(`Send ${ids.length} photo${ids.length>1?'s':''} to Google Gemini to enhance?`))return;
+    close();let stop=false,done=0,fail=0,lastErr='';
+    for(const id of ids){if(stop)break;toastAction(`Enhancing photo ${done+fail+1} of ${ids.length}…`,'Stop',()=>{stop=true},600000);
+      try{if(mode==='off')await applyEnh(id,null);else if(mode==='auto')await applyEnh(id,await lookImg(id,'auto',.7),{look:'auto',k:.7});
+        else{const o=await origImg(id);await applyEnh(id,await aiEnhance(toCanvas(o,3000),''),{ai:true,model:(aiCfg().model||AI_DEF_MODEL)})}done++}
+      catch(er){fail++;lastErr=aiErr(er);if(/key|internet|limit/.test(lastErr))break}
+      await wait(0)}
+    touch();renderStage();renderInsp();renderStrip();
+    toast(`${mode==='off'?'Originals back':'Enhanced'}: ${done} photo${done!==1?'s':''}.${fail?` ${fail} failed. ${lastErr}`:''}${stop?' Stopped.':''}`);
+  });
+}
 
 /* ========== Backup ========== */
 let _dl;function dlCap(){if(_dl!==undefined)return Promise.resolve(_dl);if(!(window.claude&&window.claude.use))return Promise.resolve(_dl=null);return window.claude.use('downloads').then(d=>_dl=d||null).catch(()=>_dl=null)}
@@ -1441,7 +1589,7 @@ function askPassword(title,mode){return new Promise(res=>{const m=document.creat
   m.addEventListener('click',e=>{if(e.target===m||e.target.closest('[data-x]'))done(null);if(e.target.closest('[data-nopw]'))done('');if(e.target.closest('[data-ok]'))ok()});
   m.addEventListener('keydown',e=>{if(e.key==='Enter')ok();if(e.key==='Escape')done(null)})})}
 async function bookBlob(bk,pw){
-  const photos=[];for(const id of bk.photoIds||[]){const r=await store.get('photos',id);const f=await store.get('full',id);if(r)photos.push({...r,full:f?f.data:r.med})}
+  const photos=[];for(const id of bk.photoIds||[]){const r=await store.get('photos',id);const f=await store.get('full',id);if(r)photos.push({...r,full:f?f.data:r.med,orig:f&&f.orig||undefined})}
   const json=JSON.stringify({app:'photobook-studio',v:1,book:bk,photos});
   return pw?lockBlob(json,pw):new Blob([json],{type:'application/json'})}
 async function shareOrSave(blob,name,title){
@@ -1492,7 +1640,7 @@ async function restoreOne(buf,ctx){
   if(old){/* a copy: give the book and its photos new ids so the two books never share photos */
     const map={};photos.forEach(p=>map[p.id]=uid());let js=JSON.stringify(bk);for(const k in map)js=js.split('"'+k+'"').join('"'+map[k]+'"');
     Object.assign(bk,JSON.parse(js));bk.id=uid();photos=photos.map(p=>({...p,id:map[p.id]}))}
-  for(const p of photos){const{full,...rec}=p;rec.bookId=bk.id;await store.put('photos',rec);await store.put('full',{id:p.id,data:full||p.med});photoMeta.set(p.id,rec)}
+  for(const p of photos){const{full,orig,...rec}=p;rec.bookId=bk.id;await store.put('photos',rec);await store.put('full',orig?{id:p.id,data:full||p.med,orig}:{id:p.id,data:full||p.med});photoMeta.set(p.id,rec)}
   bk.updated=Date.now();await store.put('books',bk);ctx.added.push(bk.title||'Untitled');return 'added';
 }
 async function restoreBackup(file){
@@ -1670,6 +1818,7 @@ document.addEventListener('click',async e=>{
     case 'book':return openBookSettings();
     case 'preview':return openPreview();
     case 'export':return exportPDF();
+    case 'zoomfit':S.zoom=1;return renderStage();
     case 'prev':if(narrow())return select(S.sel-1);S.spread=Math.max(0,S.spread-1);return select(S.spread===0?0:realPages(spreadPages(S.spread))[0]);
     case 'next':if(narrow())return select(S.sel+1);S.spread=Math.min(spreadCount()-1,S.spread+1);return select(realPages(spreadPages(S.spread))[0]);
     case 'addpage':{const np=newPage('full');bk.pages.splice(S.sel+1,0,np);touch();select(S.sel+1);return}
@@ -1698,6 +1847,7 @@ document.addEventListener('click',async e=>{
   const pm=t.closest('[data-pmotif]');if(pm){p.motif=pm.dataset.pmotif;return changed({insp:true})}
   const fo=t.closest('[data-font]');if(fo){bk.cover.font=fo.dataset.font;touch();renderStage();renderStrip();renderInsp();return}
   const pk=t.closest('[data-pick]');if(pk)return openPicker(+pk.dataset.pick);
+  const en=t.closest('[data-enh]');if(en)return openEnhance(en.dataset.enh);
   const un=t.closest('[data-unslot]');if(un){p.photos[+un.dataset.unslot]=null;return changed({insp:true})}
   const fx=t.closest('[data-focus]');if(fx&&fxDragged){fxDragged=false;return}if(fx){const r=fx.getBoundingClientRect();const s=p.photos[+fx.dataset.focus];if(s){s.fx=r1(clamp((e.clientX-r.left)/r.width,0,1)*100)/100;s.fy=r1(clamp((e.clientY-r.top)/r.height,0,1)*100)/100;const dot=fx.querySelector('.dot');dot.style.left=s.fx*100+'%';dot.style.top=s.fy*100+'%';changed()}return}
   const ptab=t.closest('[data-part-tab]');if(ptab){S.coverPart=ptab.dataset.partTab;S.stickerSel=null;renderStage();renderInsp();return}
@@ -1832,6 +1982,27 @@ document.addEventListener('keydown',e=>{
   if(e.key==='ArrowLeft'){e.preventDefault();select(S.sel-1)}
   if((e.key==='Delete'||e.key==='Backspace')&&S.stickerSel){const p=curPage();p.stickers=p.stickers.filter(s=>s.id!==S.stickerSel);S.stickerSel=null;changed({insp:true})}
 });
+/* Zoom the page view: pinch with two fingers (phone) or Ctrl + scroll / trackpad pinch (computer). "Fit page" goes back. */
+const ZMAX=4;
+function zoomTo(nz,frac,fx,fy){const zw=$('#zw');if(!zw)return;nz=clamp(nz,1,ZMAX);if(nz<1.04)nz=1;S.zoom=nz;renderStage();
+  const z2=$('#zw'),bk=z2&&z2.querySelector('.book');if(!bk||!frac)return;const zr=z2.getBoundingClientRect();
+  z2.scrollLeft=bk.offsetLeft+frac[0]*bk.offsetWidth-(fx-zr.left);z2.scrollTop=bk.offsetTop+frac[1]*bk.offsetHeight-(fy-zr.top)}
+function stopDrags(){
+  if(pan){pan.s.fx=pan.fx;pan.s.fy=pan.fy;pan.el.style.backgroundPosition=`${r1(pan.fx*100)}% ${r1(pan.fy*100)}%`;pan=null}
+  const moved=(cdrag&&cdrag.moved)||(hdrag&&hdrag.moved)||(drag&&drag.moved);cdrag=hdrag=drag=null;if(moved)touch()}
+let pinch=null;
+const mid=t=>[(t[0].clientX+t[1].clientX)/2,(t[0].clientY+t[1].clientY)/2],gap=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY)||1;
+document.addEventListener('touchstart',e=>{if(S.view!=='edit'||e.touches.length!==2)return;const zw=$('#zw');if(!zw||!zw.contains(e.target))return;
+  const bk=zw.querySelector('.book');if(!bk)return;stopDrags();e.preventDefault();const m=mid(e.touches),r=bk.getBoundingClientRect();
+  pinch={bk,d0:gap(e.touches),m0:m,m:m,r:1,z0:S.zoom||1,frac:[clamp((m[0]-r.left)/r.width,0,1),clamp((m[1]-r.top)/r.height,0,1)]};
+  bk.style.transformOrigin=`${pinch.frac[0]*100}% ${pinch.frac[1]*100}%`;bk.style.willChange='transform'},{passive:false,capture:true});
+document.addEventListener('touchmove',e=>{if(!pinch)return;e.preventDefault();if(e.touches.length<2)return;const p=pinch;p.m=mid(e.touches);
+  p.r=clamp(gap(e.touches)/p.d0,1/p.z0,ZMAX/p.z0);p.bk.style.transform=`translate(${p.m[0]-p.m0[0]}px,${p.m[1]-p.m0[1]}px) scale(${p.r})`},{passive:false,capture:true});
+const pinchEnd=e=>{if(!pinch||(e.touches&&e.touches.length>=2))return;const p=pinch;pinch=null;p.bk.style.transform='';zoomTo(p.z0*p.r,p.frac,p.m[0],p.m[1])};
+document.addEventListener('touchend',pinchEnd,true);document.addEventListener('touchcancel',pinchEnd,true);
+let wz=null;document.addEventListener('wheel',e=>{if(!e.ctrlKey||S.view!=='edit')return;const zw=$('#zw');if(!zw||!zw.contains(e.target))return;e.preventDefault();
+  const bk=zw.querySelector('.book');if(!bk)return;const r=bk.getBoundingClientRect();const pw=wz;wz={t:pw&&pw.t,z:(pw?pw.z:S.zoom||1)*Math.exp(-e.deltaY*.01),x:e.clientX,y:e.clientY,frac:[clamp((e.clientX-r.left)/r.width,0,1),clamp((e.clientY-r.top)/r.height,0,1)]};
+  if(!wz.t)wz.t=requestAnimationFrame(()=>{const w=wz;wz=null;zoomTo(w.z,w.frac,w.x,w.y)})},{passive:false});
 let rzT=null;window.addEventListener('resize',()=>{clearTimeout(rzT);rzT=setTimeout(()=>{if(S.view==='edit')renderStage()},120)});
 window.addEventListener('pagehide',()=>{if(S.book)saveBook()});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&S.book)saveBook()});

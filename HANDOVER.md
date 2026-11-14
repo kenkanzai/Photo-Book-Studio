@@ -31,13 +31,22 @@ A single-file photobook app (index.html). Installable on phone and laptop from G
 - Page strip: drag a page to move it (phone: hold, then drag); × deletes it.
 - Undo / redo: ↶ ↷ in the top bar, or Ctrl+Z / Ctrl+Y. Up to 60 steps per open book.
 - One photo, one place: a photo can only be on one spot; picking a used photo moves it.
+- Zoom the page view: pinch with two fingers (phone) or Ctrl + scroll / trackpad pinch (computer), up to 4×. Move around with two fingers or by scrolling the space around the page. 'Fit page' (top right) goes back; changing page also goes back to fit. Zoom only re-draws the page larger, so photo, caption and sticker dragging work the same when zoomed.
 - Layouts: ▦ button on each page corner. Photos: tap to change, drag to move the view.
 - Book view: the editor shows pages as an open book (cover as a closed book / flat Back | Spine | Front). Preview opens a 3D book you can turn, and pages turn like a real book.
 - Book name: rename on the shelf (pencil next to the name) or in Book settings. Only the shelf name changes; the cover title stays.
 
+## Photo enhance
+- Side panel → photo → Enhance opens a window: Before / After, looks Off, Auto, Vivid, Warm, Cool, B&W (on the device, offline, with Strength), and AI ✦ (online).
+- AI ✦: Google Gemini image editing (default model gemini-2.5-flash-image, changeable in AI settings). Optional extra request, e.g. "brighter sky". Try again gives a new version. The prompt asks for a realistic professional edit that keeps people, faces and details.
+- AI settings (in the Enhance window): the user's own Gemini key (from aistudio.google.com/apikey) and model name, kept on the device (localStorage 'pbs-ai'). The app never contains a key.
+- If the AI result is under 2000 px on its long side, the window says a full-page print may look a little soft.
+- Book settings → Enhance all photos: Auto (offline), AI (online, one by one, with Stop), or put all originals back. Already enhanced photos are skipped.
+- Saving: the enhanced picture replaces the full, medium and small sizes (so the page view and PDF use it); the original stays in the 'full' record as orig. Off brings it back. Photo record has enh: {look,k} or {ai:true,model}. Backups include the originals.
+
 ## Privacy and security
 - No outside connections: fonts (Anton, Archivo Black, Caveat, Cormorant Garamond, Figtree, Montserrat, Playfair Display — latin) and the PDF tools (html2canvas 1.4.1, jsPDF 2.5.1, MIT) are built into index.html. Works offline from the first visit.
-- No account, no tracking, no uploads. Books and photos stay in the browser on the device.
+- No account, no tracking. Books and photos stay on the device. The only upload is AI enhance: when the user taps it, that photo is sent to Google Gemini with the user's own key.
 - Backups can be locked with a password: AES-GCM 256, key from PBKDF2-SHA256 (310,000 rounds), random salt and IV. File starts with "PBSLOCK1". A forgotten password cannot be recovered.
 - "Saved ✓ / Saving… / Not saved" shows next to the book title. The app saves by itself after every change.
 - Deleting a book can be undone for 10 seconds (Undo in the message).
@@ -59,12 +68,12 @@ A single-file photobook app (index.html). Installable on phone and laptop from G
 - The build copies index.html, the manifest and the icons into the app, so the app always matches the website.
 - Add photos opens the phone's photo picker directly. Backups and PDFs open the phone's Save window (JS bridge window.AndroidFiles: begin, append, end; result in window.__afDone: 1 saved, 0 cancelled, -1 failed).
 - Back button: closes the open window, then goes back to the shelf, then leaves the app (window.__appBack).
-- No internet permission. Books stay on the phone; deleting the app deletes its books, so back up first.
+- Internet permission is only for AI enhance. Books stay on the phone; deleting the app deletes its books, so back up first.
 - Signed with android/app/photobook.keystore so each new APK installs over the old one and keeps the books. Do not change or lose this file.
 
 
 ## Rules for updates
-- Keep it one index.html with the fonts and PDF tools built in, and no outside requests.
+- Keep it one index.html with the fonts and PDF tools built in, and no outside requests except AI enhance (generativelanguage.googleapis.com, only when the user taps it).
 - index.html must work both on the website and inside the Android app (check window.AndroidFiles where they differ).
 - When changing sw.js or how files are cached, raise VERSION in sw.js (now pbs-v2 → next pbs-v3) so installed copies update.
 

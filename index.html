@@ -136,7 +136,7 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.45}
 .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
 .photo-grid .pt{position:relative;aspect-ratio:1;border-radius:8px;background:var(--surface-2) center/cover no-repeat;border:0;padding:0}
-.pt-cell{position:relative}.pt-cell>.pt{display:block;width:100%}
+.pt-cell{position:relative}.mm-row{display:flex;align-items:center;gap:8px}.mm-row .mm-inp{width:110px}.mm-row span{font-weight:600;color:var(--muted)}.pt-cell>.pt{display:block;width:100%}
 .pt-cell>.x,.photo-grid .pt .x{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:14px;line-height:24px}
 .photo-grid .pt .used{position:absolute;left:4px;bottom:4px;font-size:11px;font-weight:700;background:rgba(0,0,0,.6);color:#fff;border-radius:6px;padding:1px 6px}
 .add-tile{aspect-ratio:1;border-radius:8px;border:1.5px dashed var(--muted);background:transparent;color:var(--muted);font-weight:600;font-size:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
@@ -263,6 +263,9 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.45}
 .lay-btn{position:absolute;top:8px;z-index:7;width:34px;height:34px;border-radius:9px;border:0;background:rgba(255,255,255,.94);color:#1D2120;box-shadow:0 1px 5px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;padding:0}
 .lay-btn.l{left:8px}.lay-btn.r{right:8px}
 .lay-btn svg{width:16px;height:16px}
+.enh-btn{position:absolute;z-index:7;width:30px;height:30px;border-radius:50%;border:0;background:rgba(255,255,255,.94);color:#1D2120;box-shadow:0 1px 5px rgba(0,0,0,.28);font-size:15px;line-height:30px;padding:0;text-align:center}
+.enh-btn.on{background:var(--accent);color:#fff}
+.cap-al{position:absolute;z-index:8;box-shadow:0 2px 8px rgba(0,0,0,.25)}
 .stage .pg .ph{cursor:pointer;touch-action:none}
 .stage .pg .ph:not(.empty){cursor:grab}
 #insp .slot .fx{touch-action:none}
@@ -911,10 +914,20 @@ function slot(id){return id?{id,fx:.5,fy:.5}:null}
 
 /* Text measuring: uses the real font when loaded, the fallback otherwise, so titles never break mid-word */
 const _mc=document.createElement('canvas').getContext('2d');const _mw=new Map();let fontVer=0;
-function mw(word,fk,ls=0){const F=FONTS[fk]||FONTS.anton;const w=F.up?word.toUpperCase():word;const key=fontVer+'|'+fk+'|'+ls+'|'+w;let v=_mw.get(key);if(v===undefined){_mc.font=`${F.w} 100px ${F.css}`;v=_mc.measureText(w).width+ls*100*[...w].length;_mw.set(key,v)}return v}
+const MEAS={body:{css:"'Cormorant Garamond',Georgia,serif",w:500,up:false}};
+function mw(word,fk,ls=0){const F=FONTS[fk]||MEAS[fk]||FONTS.anton;const w=F.up?word.toUpperCase():word;const key=fontVer+'|'+fk+'|'+ls+'|'+w;let v=_mw.get(key);if(v===undefined){_mc.font=`${F.w} 100px ${F.css}`;v=_mc.measureText(w).width+ls*100*[...w].length;_mw.set(key,v)}return v}
 const words=t=>String(t||' ').trim().split(/\s+/).filter(Boolean);
 function fit(text,fk,avail,max,min=14,ls=0){const L=Math.max(1,...words(text).map(w=>mw(w,fk,ls)));return clamp(avail*100/L*.97,min,max)}
 function nLines(text,fk,size,avail,ls=0){const sp=mw(' ',fk,ls)*size/100;let n=1,cur=0;for(const w of words(text)){const ww=mw(w,fk,ls)*size/100;if(cur&&cur+sp+ww>avail){n++;cur=ww}else cur=cur?cur+sp+ww:ww}return n}
+/* Text height in mm (height of a capital letter). Pages are 100 px per inch. */
+const PXMM=100/25.4;const _cr=new Map();
+function capR(fk){const F=FONTS[fk]||MEAS[fk]||FONTS.anton,key=fontVer+'|'+fk;let v=_cr.get(key);if(v===undefined){_mc.font=`${F.w} 100px ${F.css}`;const m=_mc.measureText('H');v=m.actualBoundingBoxAscent>0?m.actualBoundingBoxAscent/100:.7;_cr.set(key,v)}return v}
+/* Height of a text block; Infinity when a word is wider than the space (it would break) */
+function blockH(text,fk,fs,avail,lh=1,ls=0){if(!String(text||'').trim())return 0;if(Math.max(...words(text).map(w=>mw(w,fk,ls)))*fs/100>avail*.98)return Infinity;return nLines(text,fk,fs,avail*.95,ls)*fs*lh}
+/* Largest size factor that keeps whole words and stays inside its area. TXM keeps the main text's font, size at 100% and limit for the side panel. */
+const TXM=new WeakMap();
+function txLimit(page,ts,fk,base,ok){let mx=6;if(!ok(mx)){let lo=.05,hi=mx;for(let i=0;i<22;i++){const m=(lo+hi)/2;if(ok(m))lo=m;else hi=m}mx=lo}const k=Math.min(ts,mx);TXM.set(page,{fk,base,max:mx,k});return k}
+function mmOf(info,k){return Math.round(k*info.base*capR(info.fk)/PXMM*10)/10}
 const T=(css,txt)=>`<div class="tx" style="${css}">${esc(txt)}</div>`;
 function phDiv(s,x,y,w,h,q,extra='',idx){const da=idx===undefined?'':` data-slot="${idx}"`;
   const src=s&&photoSrc(s.id,q);
@@ -932,7 +945,8 @@ const spaced=(size,color,ls=.22,fam="'Montserrat',Arial,sans-serif",w=700)=>`fon
 function coverHTML(book,page,q){
   const {W,H}=SIZES[book.size],C=book.cover,P=pal(C.palette),fk=C.font,ts=page.ts||1;
   const title=book.title||'Untitled',sub=book.subtitle||'',yr=book.year||'';
-  const ph=page.photos||[],pad=W*.08,bg=page.bg||P.bg,small=Math.max(16,Math.min(W,H)*.026)*ts;
+  const ph=page.photos||[],pad=W*.08,bg=page.bg||P.bg,sm0=Math.max(16,Math.min(W,H)*.026);let small=sm0*ts;
+  const cov=(base,av,ha,lh=.95,ls=0)=>{const k=txLimit(page,ts,fk,base,k=>blockH(title,fk,base*k,av,lh,ls)<=ha);small=sm0*k;return base*k};
   const subTx=(color,align='')=>sub?T(spaced(small,color)+align,sub):'';
   const usePh=C.motif==='photo';
   const art=(x,y,w,h)=>usePh?phDiv(ph[0],x,y,w,h,q,'',0):moDiv(C.motif,P.accent,x,y,w,h);
@@ -940,31 +954,31 @@ function coverHTML(book,page,q){
   const yrTx=(size,color)=>yr?T(dispCSS(fk,size,color,'line-height:1.1;'),yr):'';
   let x='';
   switch(C.style){
-    case 'behind':{const fs=fit(title,fk,W*.9,H*.3,30)*ts;
+    case 'behind':{const fs=cov(fit(title,fk,W*.9,H*.3,30),W*.9,H*.75);
       x=`<div class="fl" style="left:${W*.05}px;right:${W*.05}px;top:${H*.05}px;align-items:center;text-align:center">${T(dispCSS(fk,fs,P.title),title)}</div>`+art(W*.12,H*.22,W*.76,H*.68)+
         `<div class="fl" style="left:${pad}px;right:${pad}px;bottom:${H*.04}px;align-items:center;text-align:center;gap:4px">${subTx(P.accent)}${yr?T(spaced(small,P.accent),yr):''}</div>`;break}
-    case 'side':{const fs=fit(title,fk,W*.5-pad,H*.13,24)*ts;
+    case 'side':{const fs=cov(fit(title,fk,W*.5-pad,H*.13,24),W*.5-pad,H*.7);
       x=`<div class="fl" style="left:${W*.5}px;right:${pad}px;top:${H*.07}px;align-items:flex-end;text-align:right;gap:${fs*.12}px">${T(dispCSS(fk,fs,P.title),title)}${subTx(P.accent)}${yr?T(spaced(small,P.accent),yr):''}</div>`+art(W*.03,H*.2,W*.4,H*.74);break}
-    case 'poster':{const fs=fit(title,fk,W*.84,H*.22,30)*ts;
+    case 'poster':{const fs=cov(fit(title,fk,W*.84,H*.22,30),W*.84,H*.6);
       x=(usePh?phDiv(ph[0],W*.12,H*.5,W*.76,H*.44,q,'',0):moDiv(C.motif,P.accent,-W*.14,-H*.06,W*.42,H*.32)+moDiv(C.motif,P.accent,W*.5,H*.6,W*.66,H*.52))+
         `<div class="fl" style="left:${W*.08}px;right:${W*.08}px;top:${H*.2}px;align-items:center;text-align:center;gap:${fs*.14}px">${subTx(P.accent)}${T(dispCSS(fk,fs,P.title),title)}${yrTx(fs*.42,P.accent)}</div>`;break}
-    case 'photo':{const fs=fit(title,fk,W*.84,H*.075,18,.24)*ts;const hh=H*clamp(C.phH||.74,.4,1);
+    case 'photo':{const hh=H*clamp(C.phH||.74,.4,1);const fs=cov(fit(title,fk,W*.84,H*.075,18,.24),W*.84,hh>=H*.97?H*.45:Math.max(H*.06,H*.92-hh-sm0*2),1.05,.24);
       if(hh>=H*.97){const col='#FFFFFF';x=phDiv(ph[0],0,0,W,H,q,'',0)+`<div class="fl" style="left:${pad}px;right:${pad}px;bottom:${H*.06}px;align-items:center;text-align:center;gap:${fs*.25}px;text-shadow:0 2px 14px rgba(0,0,0,.5)">${T(dispCSS(fk,fs,col,`letter-spacing:.24em;line-height:1.05;`),title)}${(sub||yr)?T(spaced(small*.9,col),[sub,yr].filter(Boolean).join('  ·  ')):''}</div>`;break}
       x=phDiv(ph[0],0,0,W,hh,q,'',0)+`<div class="fl" style="left:${pad}px;right:${pad}px;top:${hh+H*.03}px;bottom:${H*.03}px;align-items:center;justify-content:center;text-align:center;gap:${fs*.25}px">${T(dispCSS(fk,fs,readable(bg,P.title),`letter-spacing:.24em;line-height:1.05;`),title)}${(sub||yr)?T(spaced(small*.9,readable(bg,P.accent)),[sub,yr].filter(Boolean).join('  ·  ')):''}</div>`;break}
-    case 'strip':{const fs=fit(title,fk,W*.36,H*.14,24)*ts;const gx=W*.5,gw=W*.42,gy=H*.07,gh=H*.6,g=W*.025,h3=(gh-2*g)/3;
+    case 'strip':{const fs=cov(fit(title,fk,W*.36,H*.14,24),W*.36,H*.6,1);const gx=W*.5,gw=W*.42,gy=H*.07,gh=H*.6,g=W*.025,h3=(gh-2*g)/3;
       x=[0,1,2].map(i=>phDiv(ph[i],gx,gy+i*(h3+g),gw,h3,q,'',i)).join('')+
         `<div class="fl" style="left:${pad}px;width:${W*.38}px;top:${H*.08}px">${T(dispCSS(fk,fs,readable(bg,P.title),'line-height:1;'),title)}</div>`+
         `<div class="fl" style="left:${pad}px;right:${pad}px;bottom:${H*.07}px;gap:6px">${sub?T(spaced(small*1.25,readable(bg,P.accent),.3,"'Cormorant Garamond',Georgia,serif",700),sub):''}${yr?T(spaced(small,readable(bg,P.accent),.3,"'Cormorant Garamond',Georgia,serif",600),yr):''}</div>`;break}
-    case 'line':{const fs=fit(title,fk,W*.8,H*.07,18,.3)*ts;const col=readable(bg,P.title,1.8);
+    case 'line':{const fs=cov(fit(title,fk,W*.8,H*.07,18,.3),W*.8,H*.4,1.15,.3);const col=readable(bg,P.title,1.8);
       const plane=svgURL(`<path d="M10 20H150" stroke="${P.accent}" stroke-width="2.5" stroke-dasharray="2 7" stroke-linecap="round"/><path transform="translate(170 20) rotate(90) scale(.16) translate(-100 -100)" d="M100 18C108 18 112 30 112 44V84L180 120V138L112 118V156L134 172V186L100 176L66 186V172L88 156V118L20 138V120L88 84V44C88 30 92 18 100 18Z" fill="${P.accent}"/>`,'0 0 190 40');
       x=`<div class="fl" style="left:${W*.08}px;right:${W*.08}px;top:${usePh?H*.14:H*.36}px;align-items:center;text-align:center;gap:${fs*.5}px">${usePh?artFlow(W*.5,H*.3):''}<div style="width:${W*.42}px;height:${W*.42*40/190}px;background:${plane} center/contain no-repeat"></div>${T(dispCSS(fk,fs,col,'letter-spacing:.3em;line-height:1.15;'),title)}${(sub||yr)?T(spaced(small,readable(bg,P.accent,1.8),.3),[sub,yr].filter(Boolean).join(' ')):''}</div>`;break}
     case 'checker':{const b=Math.round(Math.min(W,H)*.075);const pat=svgURL(`<rect width="20" height="20" fill="#FFFFFF"/><rect width="10" height="10" fill="${P.accent}"/><rect x="10" y="10" width="10" height="10" fill="${P.accent}"/>`,'0 0 20 20');
       const band=(css)=>`<div class="band" style="${css}background-image:${pat};background-size:${b}px ${b}px;background-repeat:repeat"></div>`;
-      const fs=fit(title,fk,W*.7,Math.min(W,H)*.12,22)*ts;const col=readable(bg,P.title);
+      const fs=cov(fit(title,fk,W*.7,Math.min(W,H)*.12,22),W*.7,H*.45,1.05,.06);const col=readable(bg,P.title);
       x=band(`left:0;top:0;width:${W}px;height:${b}px;`)+band(`left:0;top:${H-b}px;width:${W}px;height:${b}px;`)+band(`left:0;top:0;width:${b}px;height:${H}px;`)+band(`left:${W-b}px;top:0;width:${b}px;height:${H}px;`)+
         `<div class="fl" style="left:${b*2}px;right:${b*2}px;top:${b*1.6}px;bottom:${b*1.6}px;align-items:center;justify-content:center;text-align:center;gap:${fs*.25}px">${artFlow(Math.min(W,H)*(usePh?.34:.26),Math.min(W,H)*.26)}${sub?T(spaced(small*1.1,col,.3,"'Cormorant Garamond',Georgia,serif",700),sub):''}${T(dispCSS(fk,fs,col,'letter-spacing:.06em;line-height:1.05;'),title)}${yr?T(spaced(small,col,.3),yr):''}</div>`;break}
-    default:{const fs=fit(title,fk,W-2*pad,H*.17,28)*ts; // bold
-      const tb=H*.07+nLines(title,fk,fs,W-2*pad)*fs*.95+(yr?fs*.1+fs*.3*1.1:0)+(sub?fs*.1+small*1.25:0)+H*.04;const my=Math.max(H*.34,tb),mh=H*.95-my;
+    default:{const fs=cov(fit(title,fk,W-2*pad,H*.17,28),W-2*pad,H*.6); // bold
+      const tb=H*.07+nLines(title,fk,fs,(W-2*pad)*.95)*fs*.95+(yr?fs*.1+fs*.3*1.1:0)+(sub?fs*.1+small*1.25:0)+H*.04;const my=Math.max(H*.34,tb),mh=H*.95-my;
       x=`<div class="fl" style="left:${pad}px;right:${pad}px;top:${H*.07}px;align-items:flex-end;text-align:right;gap:${fs*.1}px">${T(dispCSS(fk,fs,P.title),title)}${yrTx(fs*.3,P.accent)}${subTx(P.accent)}</div>`+(mh>H*.12?art(W*.16,my,W*.68,mh):'')}
   }
   return`<div class="pg" style="width:${W}px;height:${H}px;background:${bg}">${x}${stickersHTML(page,W,H)}</div>`;
@@ -995,26 +1009,29 @@ function pageHTML(book,page,q){
   let bg=page.bg||'#FFFFFF',x='';
   const body=(size,color)=>`font-family:'Cormorant Garamond',Georgia,serif;font-weight:500;font-size:${r1(size)}px;line-height:1.5;color:${color};`;
   switch(page.layout){
-    case 'title':{const ink=page.ink||readable(bg,'#1E1E1E');const t=tx.title||book.title||'Title';const fs=fit(t,fk,W*.8,H*.14,26)*ts;
-      const sf=Math.min(W,H)*.026*ts;const tb=H*.08+nLines(t,fk,fs,W*.8)*fs*.95+(tx.sub?fs*.15+nLines(tx.sub,'montserrat',sf,W*.8,.22)*sf*1.25:0)+H*.05;const my=Math.max(H*.3,tb),mh=H*.94-my;
+    case 'title':{const ink=page.ink||readable(bg,'#1E1E1E');const t=tx.title||book.title||'Title';const b0=fit(t,fk,W*.8,H*.14,26),s0=Math.min(W,H)*.026;
+      const K=txLimit(page,ts,fk,b0,k=>blockH(t,fk,b0*k,W*.8,.95)+(tx.sub?b0*k*.15+blockH(tx.sub,'montserrat',s0*k,W*.8,1.25,.22):0)<=H*.6);const fs=b0*K,sf=s0*K;const tb=H*.08+nLines(t,fk,fs,W*.8*.95)*fs*.95+(tx.sub?fs*.15+nLines(tx.sub,'montserrat',sf,W*.8,.22)*sf*1.25:0)+H*.05;const my=Math.max(H*.3,tb),mh=H*.94-my;
       x=`<div class="fl" style="left:${W*.1}px;right:${W*.1}px;top:${H*.08}px;align-items:center;text-align:center;gap:${fs*.15}px">${T(dispCSS(fk,fs,ink),t)}${tx.sub?T(spaced(sf,readable(bg,P.accent)),tx.sub):''}</div>`+(mh>H*.12?moDiv(mk,readable(bg,P.accent,1.6),W*.14,my,W*.72,mh):'');break}
-    case 'chapter':{bg=page.bg||P.bg;const ink=page.ink||P.title;const t=tx.title||'Place';const fs=fit(t,fk,W*.8,H*.17,26)*ts;const acc=readable(bg,P.accent,1.8);
-      const df=Math.min(W,H)*.04*ts;const tb=H*.12+W*.1+fs*.18+nLines(t,fk,fs,W*.8)*fs*.98+(tx.sub?fs*.18+df*1.2:0)+H*.05;const my=Math.max(H*.45,tb),mh=H*.95-my;
+    case 'chapter':{bg=page.bg||P.bg;const ink=page.ink||P.title;const t=tx.title||'Place';const b0=fit(t,fk,W*.8,H*.17,26),d0=Math.min(W,H)*.04;const acc=readable(bg,P.accent,1.8);
+      const K=txLimit(page,ts,fk,b0,k=>blockH(t,fk,b0*k,W*.8,.98)+(tx.sub?b0*k*.18+blockH(tx.sub,'montserrat',d0*k,W*.8,1.2):0)<=H*.6);const fs=b0*K,df=d0*K;const tb=H*.12+W*.1+fs*.18+nLines(t,fk,fs,W*.8*.95)*fs*.98+(tx.sub?fs*.18+df*1.2:0)+H*.05;const my=Math.max(H*.45,tb),mh=H*.95-my;
       x=(mh>H*.12?moDiv(mk,mix(bg,acc,.35),W*.1,my,W*.8,mh):'')+`<div class="fl" style="left:${W*.1}px;right:${W*.1}px;top:${H*.12}px;align-items:center;text-align:center;gap:${fs*.18}px"><div style="width:${W*.08}px;height:${W*.1}px;background:${motifURL('pin',acc)} center/contain no-repeat"></div>${T(dispCSS(fk,fs,ink,'line-height:.98;'),t)}${tx.sub?T(dispCSS('montserrat',df,acc,'text-transform:none;letter-spacing:.02em;line-height:1.2;'),tx.sub):''}</div>`;break}
-    case 'route':{const ink=page.ink||readable(bg,'#1E1E1E');const acc=readable(bg,P.accent,1.8);const t=tx.title||'Travel route';const fs=fit(t,fk,W*.84,H*.08,22)*ts;
+    case 'route':{const ink=page.ink||readable(bg,'#1E1E1E');const acc=readable(bg,P.accent,1.8);const t=tx.title||'Travel route';const b0=fit(t,fk,W*.84,H*.08,22),l0=Math.min(W,H)*.032;
+      const K=txLimit(page,ts,fk,b0,k=>blockH(t,fk,b0*k,W*.84,.95)<=H*.14&&(page.stops||[]).every(s=>blockH(s.name,'montserrat',l0*k,W*.3,1.15)<Infinity));const fs=b0*K;
       const stops=(page.stops||[]).filter(s=>s.name||s.date);const n=stops.length;const top=H*.22,bot=H*.82;
       const pts=stops.map((s,i)=>{const y=n===1?(top+bot)/2:top+(bot-top)*i/(n-1);const xx=W*(i%2?.64:.36)+(i%4===2?W*.05:i%4===3?-W*.04:0);return[xx,y]});
       let path='';if(n>1){path=`M${r1(pts[0][0])} ${r1(pts[0][1])}`;for(let i=1;i<n;i++){const[a,b]=pts[i-1],[c,d]=pts[i];const dy=(d-b)/2;path+=` C${r1(a)} ${r1(b+dy)} ${r1(c)} ${r1(d-dy)} ${r1(c)} ${r1(d)}`}}
       const svg=svgURL(`${path?`<path d="${path}" fill="none" stroke="${acc}" stroke-width="4" stroke-dasharray="2 12" stroke-linecap="round"/>`:''}${pts.map(([a,b])=>`<circle cx="${r1(a)}" cy="${r1(b)}" r="13" fill="${acc}"/><circle cx="${r1(a)}" cy="${r1(b)}" r="5" fill="#FFFFFF"/>`).join('')}`,`0 0 ${W} ${H}`);
-      const lf=Math.min(W,H)*.032*ts;
+      const lf=l0*K;
       const labels=stops.map((s,i)=>{const[a,b]=pts[i];const right=a<W/2;const css=right?`right:${r1(W-a+24)}px;align-items:flex-end;text-align:right;`:`left:${r1(a+24)}px;align-items:flex-start;text-align:left;`;return`<div class="fl" style="${css}top:${r1(b-lf*.7)}px;max-width:${W*.3}px">${T(`font-family:'Montserrat',Arial,sans-serif;font-weight:800;font-size:${r1(lf)}px;line-height:1.15;color:${ink};`,s.name)}${s.date?T(`font-family:'Montserrat',Arial,sans-serif;font-weight:500;font-size:${r1(lf*.72)}px;line-height:1.3;color:${mix(ink,bg,.35)};`,s.date):''}</div>`}).join('');
       x=`<div class="fl" style="left:${W*.08}px;right:${W*.08}px;top:${H*.06}px;align-items:center;text-align:center">${T(dispCSS(fk,fs,acc),t)}</div><div class="mo" style="left:0;top:0;width:${W}px;height:${H}px;background-image:${svg};background-size:100% 100%"></div>${labels}`+
         (!n&&q!=='full'?`<div class="fl" style="left:0;right:0;top:${H*.45}px;align-items:center">${T(`font-size:${r1(lf)}px;color:#8A8C86;font-weight:600;`,'Add stops in the side panel')}</div>`:'')+
         (tx.sub?`<div class="fl" style="left:${W*.08}px;right:${W*.08}px;bottom:${H*.05}px;align-items:center;text-align:center">${T(dispCSS(fk,fs*.55,acc,'line-height:1.1;'),tx.sub)}</div>`:'');break}
-    case 'note':{const ink=page.ink||readable(bg,'#1E1E1E');const fs=fit(tx.title||'Note',fk,W*.7,H*.08,22)*ts;
-      const NA=alignCSS(page.align||'center');x=`<div class="fl" style="left:${W*.15}px;right:${W*.15}px;top:0;bottom:0;justify-content:center;align-items:${NA.items};${NA.text}gap:${fs*.4}px">${tx.title?T(dispCSS(fk,fs,ink,'line-height:1.05;'),tx.title):''}${tx.body?T(body(Math.min(W,H)*(page.quote?.044:.036)*ts,ink)+(page.quote?'font-style:italic;':''),tx.body):(q!=='full'&&!tx.title?T(body(28,'#8A8C86'),page.quote?'Page 1: write a caption or quote in the side panel':'Write something in the side panel'):'')}</div>`;break}
-    case 'photoText':{const ink=page.ink||readable(bg,'#1E1E1E');const[r]=slotRects('photoText',W,H);const top=r[1]+r[3]+Math.min(W,H)*.035;const fs=Math.min(W,H)*.05*ts;
-      x=phDiv(ph[0],r[0],r[1],r[2],r[3],q,'',0)+`<div class="fl" style="left:${r[0]}px;right:${r[0]}px;top:${top}px;bottom:${r[1]}px;gap:6px;align-items:${alignCSS(page.align||'left').items};${alignCSS(page.align||'left').text}">${tx.title?T(dispCSS(fk,fs,ink,'line-height:1.05;'),tx.title):''}${tx.body?T(body(Math.min(W,H)*.03*ts,ink),tx.body):''}</div>`;break}
+    case 'note':{const ink=page.ink||readable(bg,'#1E1E1E');const b0=fit(tx.title||'Note',fk,W*.7,H*.08,22),y0=Math.min(W,H)*(page.quote?.044:.036);
+      const K=txLimit(page,ts,tx.title||!tx.body?fk:'body',tx.title||!tx.body?b0:y0,k=>blockH(tx.title,fk,b0*k,W*.7,1.05)+(tx.title&&tx.body?b0*k*.4:0)+blockH(tx.body,'body',y0*k,W*.7,1.5)<=H*.9);const fs=b0*K;
+      const NA=alignCSS(page.align||'center');x=`<div class="fl" style="left:${W*.15}px;right:${W*.15}px;top:0;bottom:0;justify-content:center;align-items:${NA.items};${NA.text}gap:${fs*.4}px">${tx.title?T(dispCSS(fk,fs,ink,'line-height:1.05;'),tx.title):''}${tx.body?T(body(y0*K,ink)+(page.quote?'font-style:italic;':''),tx.body):(q!=='full'&&!tx.title?T(body(28,'#8A8C86'),page.quote?'Page 1: write a caption or quote in the side panel':'Write something in the side panel'):'')}</div>`;break}
+    case 'photoText':{const ink=page.ink||readable(bg,'#1E1E1E');const[r]=slotRects('photoText',W,H);const top=r[1]+r[3]+Math.min(W,H)*.035;const f0=Math.min(W,H)*.05,y0=Math.min(W,H)*.03,av=W-2*r[0];
+      const K=txLimit(page,ts,tx.title||!tx.body?fk:'body',tx.title||!tx.body?f0:y0,k=>blockH(tx.title,fk,f0*k,av,1.05)+(tx.title&&tx.body?6:0)+blockH(tx.body,'body',y0*k,av,1.5)<=H-top-r[1]);const fs=f0*K;
+      x=phDiv(ph[0],r[0],r[1],r[2],r[3],q,'',0)+`<div class="fl" style="left:${r[0]}px;right:${r[0]}px;top:${top}px;bottom:${r[1]}px;gap:6px;align-items:${alignCSS(page.align||'left').items};${alignCSS(page.align||'left').text}">${tx.title?T(dispCSS(fk,fs,ink,'line-height:1.05;'),tx.title):''}${tx.body?T(body(y0*K,ink),tx.body):''}</div>`;break}
     case 'spread':case 'spreadR':{const pr=spreadPair(book,page);
       if(pr)x=spreadDiv((pr.left.photos||[])[0],pr.half,W,H,q);
       else if(page.layout==='spread')x=phDiv(ph[0],0,0,W,H,q,'',0);
@@ -1023,7 +1040,9 @@ function pageHTML(book,page,q){
       x=slotRects(page.layout,W,H).map((rc,i)=>`<div class="fr" style="left:${r1(rc[0])}px;top:${r1(rc[1])}px;width:${r1(rc[2])}px;height:${r1(rc[3])}px;transform:rotate(${rc[4]}deg)">${phDiv(ph[i],b,b,rc[2]-2*b,rc[3]-2*b,q,'',i)}</div>`).join('');break}
     default:{ // full, two, three, grid4
       x=slotRects(page.layout,W,H).map((rc,i)=>phDiv(ph[i],rc[0],rc[1],rc[2],rc[3],q,'',i)).join('');
-      if(page.layout==='full'&&(tx.title||tx.sub)){const fs=Math.min(W,H)*.06*ts;const cp=capOf(page);
+      let K=ts;const f0=Math.min(W,H)*.06;
+      if(page.layout==='full'){const cp=capOf(page),cw=cp.w?cp.w*W:W*.84;K=txLimit(page,ts,fk,f0,k=>blockH(tx.title,fk,f0*k,cw,1.05)+(tx.sub?4+blockH(tx.sub,'montserrat',f0*k*.32,cw,1.25,.22):0)<=H*.9)}
+      if(page.layout==='full'&&(tx.title||tx.sub)){const fs=f0*K;const cp=capOf(page);
         const col=page.ink||(cp.style==='box'?'#1E1E1E':'#FFFFFF');const al=page.align||(cp.ax===0?'left':cp.ax===100?'right':'center');const AC=alignCSS(al);const pad=Math.min(W,H)*.025;
         const back=cp.style==='band'?`background:rgba(0,0,0,.48);padding:${r1(pad)}px ${r1(pad*1.3)}px;border-radius:${r1(pad*.4)}px;`:cp.style==='box'?`background:rgba(255,255,255,.88);padding:${r1(pad)}px ${r1(pad*1.3)}px;border-radius:${r1(pad*.4)}px;`:cp.style==='shadow'?'text-shadow:0 2px 12px rgba(0,0,0,.5);':'';
         x+=`<div class="fl cap" style="left:${r1(cp.x*W)}px;top:${r1(cp.y*H)}px;${cp.w?`width:${r1(cp.w*W)}px;`:`width:max-content;max-width:${r1(W*.84)}px;`}${cp.h?`min-height:${r1(cp.h*H)}px;justify-content:center;`:''}transform:translate(-${cp.ax}%,-${cp.ay}%);align-items:${AC.items};${AC.text}gap:4px;${back}">${tx.title?T(dispCSS(fk,fs,col,'line-height:1.05;'),tx.title):''}${tx.sub?T(spaced(fs*.32,col),tx.sub):''}</div>`}
@@ -1038,15 +1057,18 @@ function spineDefaults(book){const trip=book.type==='trip';return{name:{on:!trip
 function spinePart(book,k){const d=spineDefaults(book)[k],v=((book.spine||{}).parts||{})[k]||{};return{on:v.on??d.on,val:v.val??d.auto,auto:d.auto,typed:v.val!==undefined}}
 const SEPS={dot:'  •  ',mid:'  ·  ',bar:'  |  ',space:'   '};
 function spineAuto(book){const sp=book.spine||{};return SPINE_PARTS.map(([k])=>spinePart(book,k)).filter(x=>x.on&&x.val.trim()).map(x=>x.val.trim()).join(SEPS[sp.sep||'dot'])}
+const SPM=new WeakMap();
 function spineHTML(book){const{H}=SIZES[book.size],sw=spinePx(book),sp=spineInfo(book),F=FONTS[sp.font]||FONTS.cormorant;
-  const txt=sp.text||'';let fs=Math.min(sw*.42,30)*sp.size;const icon=sp.trip?fs*3.2:0;const need=mw(txt,sp.font,.18)*fs/100+icon;if(need>H*.86)fs=fs*H*.86/need;
+  const txt=sp.text||'';const b0=Math.min(sw*.42,30),per=mw(txt,sp.font,.18)/100+(sp.trip?3.2:0);
+  const mx=Math.max(.3,Math.min(sw*.72/(b0*capR(sp.font)),H*.86/(per*b0||1)));const kk=Math.min(sp.size,mx);SPM.set(book,{fk:sp.font,base:b0,max:mx,k:kk});let fs=b0*kk;
   const inner=`${sp.trip?`<span style="font-size:${r1(fs)}px;line-height:1">✈</span><span style="flex:0 0 ${r1(fs*1.8)}px;border-top:${Math.max(1,r1(fs*.12))}px dotted ${sp.ink};opacity:.7"></span>`:''}<span style="font-family:${F.css};font-weight:${F.w};font-size:${r1(fs)}px;letter-spacing:.18em;${F.up?'text-transform:uppercase;':''}white-space:nowrap;line-height:1">${esc(txt)}</span>`;
   return`<div class="pg spine-pg" style="width:${r1(sw)}px;height:${H}px;background:${sp.bg};color:${sp.ink}"><div style="position:absolute;left:${r1(sw/2-H/2)}px;top:${r1(H/2-sw/2)}px;width:${H}px;height:${r1(sw)}px;transform:rotate(90deg);display:flex;align-items:center;justify-content:center;gap:${r1(fs*.6)}px;color:${sp.ink}">${inner}</div></div>`}
 function backHTML(book,q){const{W,H}=SIZES[book.size],b=book.back||newPage('back'),C=book.cover,P=pal(C.palette),bg=b.bg||P.bg,ts=b.ts||1;const ink=b.ink||readable(bg,P.accent,2.4);
   const mk=C.motif==='photo'?TYPES[book.type].motif:C.motif;let x='';
   if(b.showPhoto)x+=phDiv((b.photos||[])[0],W*.18,H*.13,W*.64,H*.44,q,'',0);
-  const body=(b.text||{}).body||'';
-  if(body)x+=`<div class="fl" style="left:${W*.14}px;right:${W*.14}px;top:${b.showPhoto?H*.62:H*.3}px;align-items:${alignCSS(b.align||'center').items};${alignCSS(b.align||'center').text}">${T(`font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:500;font-size:${r1(Math.min(W,H)*.042*ts)}px;line-height:1.45;color:${ink};`,body)}</div>`;
+  const body=(b.text||{}).body||'',y0=Math.min(W,H)*.042,top=b.showPhoto?H*.62:H*.3;
+  const bk=txLimit(b,ts,'body',y0,k=>blockH(body,'body',y0*k,W*.72,1.45)<=(b.motifOn!==false?H*.82:H*.95)-top);
+  if(body)x+=`<div class="fl" style="left:${W*.14}px;right:${W*.14}px;top:${b.showPhoto?H*.62:H*.3}px;align-items:${alignCSS(b.align||'center').items};${alignCSS(b.align||'center').text}">${T(`font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:500;font-size:${r1(Math.min(W,H)*.042*bk)}px;line-height:1.45;color:${ink};`,body)}</div>`;
   if(b.motifOn!==false)x+=moDiv(mk,mix(bg,P.accent,.75),W*.44,H*.84,W*.12,W*.12);
   return`<div class="pg" style="width:${W}px;height:${H}px;background:${bg}">${x}${stickersHTML(b,W,H)}</div>`}
 function scaleWrap(html,sc,w,h,attrs='',cls='',over=''){return`<div class="pgbox${cls}" ${attrs} style="width:${r1(w*sc)}px;height:${r1(h*sc)}px">${html.replace(/^<div class="(pg[^"]*)" style="/,`<div class="$1" style="transform:scale(${sc});`)}${over}</div>`}
@@ -1266,11 +1288,22 @@ function renderStage(){
   st.innerHTML=`${boxes}<button class="icon-btn nav prev" data-act="prev" aria-label="Previous" ${canPrev?'':'disabled'}>‹</button><button class="icon-btn nav next" data-act="next" aria-label="Next" ${canNext?'':'disabled'}>›</button><div class="pos">${label}</div>`;
   if(!(idxs.length===1&&idxs[0]===0))st.dataset.scale=sc;
   if(S.stickerSel){const el=st.querySelector(`.pgbox.sel .st[data-sid="${S.stickerSel}"]`);el&&el.classList.add('on')}
-  drawCapHandles();
+  drawCapHandles();drawPhotoBtns();
 }
+/* Enhance button on each photo of the open pages (top-right corner, kept clear of the layout button) */
+function drawPhotoBtns(){const st=$('#stage');if(!st)return;const sr=st.getBoundingClientRect(),lays=$$('.lay-btn',st).map(b=>b.getBoundingClientRect()),S2=30;
+  $$('.pgbox[data-pi] .ph[data-slot]:not(.empty), .pgbox[data-part="back"] .ph[data-slot]:not(.empty)',st).forEach(el=>{const s=slotOfEl(el);if(!s)return;const r=el.getBoundingClientRect();if(r.width<S2+16||r.height<S2+16)return;
+    let x=r.right-12-S2,y=r.top+12;for(const L of lays)if(x<L.right&&x+S2>L.left&&y<L.bottom&&y+S2>L.top)x=L.left-6-S2;if(x<r.left+6)return;
+    const m=photoMeta.get(s.id),on=!!(m&&m.enh);const b=document.createElement('button');b.className='enh-btn'+(on?' on':'');b.dataset.enh=s.id;
+    b.title=on?'Enhanced ('+enhLabel(m.enh)+'). Tap to change':'Enhance photo';b.setAttribute('aria-label',b.title);b.textContent='✦';
+    Object.assign(b.style,{left:(x-sr.left)+'px',top:(y-sr.top)+'px'});st.appendChild(b)})}
 function drawCapHandles(){const st=$('#stage');if(!st)return;const c=st.querySelector('.pgbox.sel .pg .cap');if(!c)return;const sr=st.getBoundingClientRect(),r=c.getBoundingClientRect(),g=5;
   const o=document.createElement('div');o.className='cap-ov';Object.assign(o.style,{left:(r.left-sr.left-g)+'px',top:(r.top-sr.top-g)+'px',width:(r.width+2*g)+'px',height:(r.height+2*g)+'px'});
-  o.innerHTML=['tl','tr','bl','br'].map(h=>`<i class="c" data-h="${h}" title="Drag to resize the box"></i>`).join('')+['l','r'].map(h=>`<i class="s" data-h="${h}" title="Drag to change the width"></i>`).join('')+['t','b'].map(h=>`<i class="v" data-h="${h}" title="Drag to change the height"></i>`).join('');st.appendChild(o)}
+  o.innerHTML=['tl','tr','bl','br'].map(h=>`<i class="c" data-h="${h}" title="Drag to resize the box"></i>`).join('')+['l','r'].map(h=>`<i class="s" data-h="${h}" title="Drag to change the width"></i>`).join('')+['t','b'].map(h=>`<i class="v" data-h="${h}" title="Drag to change the height"></i>`).join('');st.appendChild(o);
+  const p=curPage(),cp=capOf(p),cur=p.align||(cp.ax===0?'left':cp.ax===100?'right':'center');const a=document.createElement('div');a.className='align-seg cap-al';a.setAttribute('role','group');a.setAttribute('aria-label','Text alignment');
+  a.innerHTML=[['left','Left'],['center','Centre'],['right','Right'],['justify','Justify']].map(([k,l])=>`<button data-align="${k}" aria-pressed="${cur===k}" aria-label="${l}" title="${l}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">${ALIGN_ICONS[k]}</svg></button>`).join('');st.appendChild(a);
+  const ow=a.offsetWidth,oh=a.offsetHeight,cx=r.left-sr.left+r.width/2;let y=r.bottom-sr.top+g+8;if(y+oh>st.clientHeight-30)y=r.top-sr.top-g-8-oh;
+  Object.assign(a.style,{left:clamp(cx-ow/2,4,st.clientWidth-ow-4)+'px',top:Math.max(4,y)+'px'})}
 function renderStrip(){
   const sp=$('#strip');if(!sp)return;const bk=S.book,{W,H}=SIZES[bk.size];const sc=74/H;
   sp.innerHTML=bk.pages.map((p,i)=>`<div class="thumb" role="button" tabindex="0" data-sel="${i}" aria-current="${i===S.sel}" aria-label="${i?'Page '+i+'. Drag to move.':'Cover'}">${boxHTML(bk,p,sc,'thumb')}<span>${i?i:'Cover'}</span>${i&&!p.quote?`<button class="thumb-x" data-delpage="${i}" aria-label="Delete page ${i}">×</button>`:''}</div>`).join('')+`<button class="thumb-add" data-act="addpage">+ Page</button>`;
@@ -1301,6 +1334,9 @@ const LAY_ICON={
   note:'<rect x="7" y="12" width="20" height="3" rx="1"/><rect x="5" y="19" width="24" height="2" rx="1" opacity=".6"/><rect x="5" y="23" width="24" height="2" rx="1" opacity=".6"/><rect x="8" y="27" width="18" height="2" rx="1" opacity=".6"/>'
 };
 const ALIGN_ICONS={left:'<path d="M3 4h14M3 8h9M3 12h14M3 16h9"/>',center:'<path d="M3 4h14M5.5 8h9M3 12h14M5.5 16h9"/>',right:'<path d="M3 4h14M8 8h9M3 12h14M8 16h9"/>',justify:'<path d="M3 4h14M3 8h14M3 12h14M3 16h9"/>'};
+/* Text height box: mm of a capital letter, limited to what fits */
+function mmField(id,attr,info,minMm=3){if(!info)return'';const mx=Math.floor(mmOf(info,info.max)*10)/10,mn=Math.min(mx,minMm);
+  return`<label class="note" for="${id}" style="display:block;margin:12px 0 4px;font-weight:600;color:var(--ink)">Text height</label><div class="mm-row"><input class="inp mm-inp" type="number" id="${id}" inputmode="decimal" step="0.5" min="${mn}" max="${mx}" value="${mmOf(info,info.k)}" ${attr}><span>mm</span></div><p class="note" style="margin-top:4px">Capital letters. ${mn}–${mx} mm fits here.</p>`}
 function alignRow(cur){return`<span class="note" style="display:block;margin:14px 0 6px;font-weight:600;color:var(--ink)">Text alignment</span><div class="align-seg" role="group" aria-label="Text alignment">${[['left','Left'],['center','Centre'],['right','Right'],['justify','Justify']].map(([k,l])=>`<button data-align="${k}" aria-pressed="${cur===k}" aria-label="${l}" title="${l}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">${ALIGN_ICONS[k]}</svg></button>`).join('')}</div>`}
 function colorRow(kind,current,opts){return`<div class="colors">${opts.map(c=>`<button class="c" data-color="${kind}" data-v="${c}" aria-pressed="${current===c}" style="background:${c||'transparent'}" aria-label="${c||'Default'}" title="${c||'Default'}">${c?'':'<span style="font-size:11px">Auto</span>'}</button>`).join('')}<input type="color" data-colorpick="${kind}" value="${current||'#ffffff'}" aria-label="Custom colour"></div>`}
 function renderInsp(){
@@ -1311,7 +1347,7 @@ function renderInsp(){
   if(S.sel===0&&S.coverPart==='spine'){const sp=bk.spine||{},si=spineInfo(bk);
     h+=`<div class="grp" style="position:sticky;top:-18px;z-index:4;background:var(--surface);padding-bottom:10px;margin-left:-18px;margin-right:-18px;padding-left:18px;padding-right:18px;box-shadow:0 6px 8px -6px rgba(0,0,0,.15)"><span class="lbl">Spine preview</span><div id="sp-prev" style="overflow-x:auto;border-radius:3px">${spinePrev(bk)}</div><p class="note">Shown larger here and stays in view while you edit. Scroll it to see all. On the book it is ${spineMM(bk)} mm wide.</p></div>
       <div class="grp"><span class="lbl">Font</span><div class="chips">${Object.entries(FONTS).map(([k,f])=>`<button class="chip" data-spfont="${k}" aria-pressed="${si.font===k}" style="font-family:${f.css}">${f.label}</button>`).join('')}</div>
-      <label class="note" for="sp-size" style="display:block;margin:12px 0 4px;font-weight:600;color:var(--ink)">Text size</label><div class="range"><input type="range" id="sp-size" min="0.5" max="1.5" step="0.05" value="${si.size}" data-sp-size><span id="sp-size-v">${Math.round(si.size*100)}%</span></div></div>
+      ${mmField('sp-th','data-spmm',SPM.get(bk),1.5)}</div>
     <div class="grp"><span class="lbl">Spine words</span>${SPINE_PARTS.map(([k,l])=>{const x=spinePart(bk,k);return`<div style="display:grid;grid-template-columns:24px 64px 1fr;align-items:center;gap:6px;margin-bottom:8px"><input type="checkbox" data-spon="${k}" ${x.on?'checked':''} aria-label="Show ${l.toLowerCase()} on spine"><label for="sp-${k}" class="note" style="margin:0;font-weight:600;color:var(--ink)">${l}</label><input class="inp" id="sp-${k}" data-sppart="${k}" value="${esc(x.val)}" placeholder="${esc(x.auto||l)}" style="min-height:38px;padding:6px 10px;font-size:14px"></div>`}).join('')}
       <p class="note">Tick what shows on the spine. They copy the cover title, ${esc(TYPES[bk.type].sub.toLowerCase())} and year until you type your own.</p>
       <span class="note" style="display:block;margin:10px 0 6px;font-weight:600;color:var(--ink)">Between words</span><div class="chips">${Object.entries({dot:'•',mid:'·',bar:'|',space:'Space'}).map(([k,l])=>`<button class="chip" data-spsep="${k}" aria-pressed="${(sp.sep||'dot')===k}">${l}</button>`).join('')}</div>
@@ -1321,7 +1357,7 @@ function renderInsp(){
       <div class="grp"><label class="lbl" for="sp-mm">Spine width (mm)</label><input class="inp" id="sp-mm" type="number" min="3" max="60" step="0.5" data-sp-mm value="${sp.mm||''}" placeholder="${spineMM({...bk,spine:{}})}" style="max-width:140px"><p class="note">Empty = ${spineMM({...bk,spine:{}})} mm, worked out from ${bk.pages.length-1} pages. Type the width your printer gives you for an exact fit.</p></div>`;
     el.innerHTML=h;const pv=$('#sp-prev');if(pv)pv.scrollLeft=(pv.scrollWidth-pv.clientWidth)/2;return}
   const photosHTML=()=>{if(!nSlots)return'';return`<div class="grp"><span class="lbl">${isCover?'Cover photo':isBack?'Photo':'Photos'}</span><div class="slots">${Array.from({length:nSlots},(_,i)=>{const s=p.photos[i];const src=s&&photoSrc(s.id,'thumb');
-      return src?`<div class="slot"><div class="fx" data-focus="${i}" style="background-image:url('${src}')" title="Tap the part of the photo to keep in view"><span class="dot" style="left:${(s.fx??.5)*100}%;top:${(s.fy??.5)*100}%"></span></div><label class="note" style="margin:0" for="z-${i}">Zoom</label><input type="range" id="z-${i}" min="1" max="3" step="0.05" value="${s.z||1}" data-zoom="${i}" style="accent-color:var(--accent)"><div class="acts"><button data-pick="${i}">Change</button><button data-enh="${s.id}" ${photoMeta.get(s.id)?.enh?'class="on"':''}>${photoMeta.get(s.id)?.enh?'✦ '+enhLabel(photoMeta.get(s.id).enh):'Enhance'}</button><button data-unslot="${i}" aria-label="Remove photo ${i+1}">✕</button></div></div>`
+      return src?`<div class="slot"><div class="fx" data-focus="${i}" style="background-image:url('${src}')" title="Tap the part of the photo to keep in view"><span class="dot" style="left:${(s.fx??.5)*100}%;top:${(s.fy??.5)*100}%"></span></div><label class="note" style="margin:0" for="z-${i}">Zoom</label><input type="range" id="z-${i}" min="1" max="3" step="0.05" value="${s.z||1}" data-zoom="${i}" style="accent-color:var(--accent)"><div class="acts"><button data-pick="${i}">Change</button><button data-unslot="${i}" aria-label="Remove photo ${i+1}">✕</button></div></div>`
       :`<div class="slot"><button class="fx none" data-pick="${i}">+ Photo</button></div>`}).join('')}</div>${isCover&&bk.cover.style==='photo'?`<label class="note" for="i-phh" style="display:block;margin:12px 0 4px;font-weight:600;color:var(--ink)">Photo size</label><div class="range"><input type="range" id="i-phh" min="0.4" max="1" step="0.02" value="${bk.cover.phH||.74}" data-phh><span id="phh-v">${Math.round((bk.cover.phH||.74)*100)}%</span></div><p class="note">100% fills the whole cover.</p>`:''}<p class="note">Drag the photo on the page to choose the part that shows.</p></div>`};
   if(isCover){
     h+=`${photosHTML()}
@@ -1329,7 +1365,7 @@ function renderInsp(){
     <label class="note" for="i-sub" style="display:block;margin:10px 0 4px;font-weight:600;color:var(--ink)">${esc(TYPES[bk.type].sub)}</label><input class="inp" id="i-sub" data-bk="subtitle" value="${esc(bk.subtitle)}">
     <label class="note" for="i-yr" style="display:block;margin:10px 0 4px;font-weight:600;color:var(--ink)">Year or dates</label><input class="inp" id="i-yr" data-bk="year" value="${esc(bk.year)}">
       <span class="note" style="display:block;margin:12px 0 6px;font-weight:600;color:var(--ink)">Title font</span><div class="chips">${Object.entries(FONTS).map(([k,f])=>`<button class="chip" data-font="${k}" aria-pressed="${bk.cover.font===k}" style="font-family:${f.css}">${f.label}</button>`).join('')}</div>
-      <label class="note" for="i-ts" style="display:block;margin:12px 0 4px;font-weight:600;color:var(--ink)">Text size</label><div class="range"><input type="range" id="i-ts" min="0.4" max="3" step="0.05" value="${p.ts||1}" data-ts><span id="ts-v">${Math.round((p.ts||1)*100)}%</span></div></div>
+      ${mmField('i-ts','data-tsmm',TXM.get(p))}</div>
     <div class="grp"><span class="lbl">Colours</span><div class="swatches">${PALETTES.map(x=>`<button class="sw" data-pal="${x.id}" aria-pressed="${bk.cover.palette===x.id}" aria-label="${x.label}" title="${x.label}" style="background:${x.bg}"><i style="background:${x.accent}"></i></button>`).join('')}</div><p class="note">Also used for place pages and the spine.</p><span class="note" style="display:block;margin:12px 0 4px;font-weight:600;color:var(--ink)">Background</span>${colorRow('bg',p.bg,['','#FFFFFF','#F4EFE6',P.bg,mix(P.bg,'#FFFFFF',.5),'#1E1E1E'])}</div>
     <div class="grp"><span class="lbl">Picture</span><div class="motifs">${['photo',...MOTIF_KEYS].map(k=>`<button class="mo-btn" data-motif="${k}" aria-pressed="${bk.cover.motif===k}" aria-label="${k==='photo'?'Your photo':MOTIFS[k].label}" title="${k==='photo'?'Your photo':MOTIFS[k].label}" style="${k==='none'||k==='photo'?'':`background-image:${motifURL(k,P.accent)}`}">${k==='none'?'None':k==='photo'?'📷':''}</button>`).join('')}</div><p class="note">📷 puts your own photo where the drawing is.</p></div>`;
   }else{
@@ -1344,7 +1380,7 @@ function renderInsp(){
     if(['title','chapter','route','full'].includes(p.layout))tf.push(['sub',p.layout==='chapter'?'Dates':p.layout==='route'?'Dates at bottom':'Small line']);
     if(['note','photoText'].includes(p.layout))tf.push(['body',p.quote?'Caption or quote':'Text']);
     const alignDef=p.layout==='full'?(()=>{const cp=capOf(p);return cp.ax===0?'left':cp.ax===100?'right':'center'})():p.layout==='photoText'?'left':'center';
-    const alignPanel=['full','note','photoText'].includes(p.layout)?alignRow(p.align||alignDef):'';
+    const alignPanel=['note','photoText'].includes(p.layout)?alignRow(p.align||alignDef):'';
     const capPanel=p.layout==='full'?(()=>{const cp=capOf(p);return`<p class="note" style="margin-top:12px">Drag the caption to move it, and its handles to resize it.</p>
       <div style="margin-top:8px"><button class="btn small" data-capfit ${cp.w||cp.h?'':'disabled'}>Fit to text</button></div>
       <span class="note" style="display:block;margin:12px 0 6px;font-weight:600;color:var(--ink)">Behind the caption</span><div class="chips">${[['shadow','Soft shadow'],['band','Dark band'],['box','Light box'],['none','Nothing']].map(([k,l])=>`<button class="chip" data-capstyle="${k}" aria-pressed="${cp.style===k}">${l}</button>`).join('')}</div>`})():'';
@@ -1357,7 +1393,7 @@ function renderInsp(){
   if(!isCover)h+=`<div class="grp"><span class="lbl">Style</span>`;
   if(hasText&&!isCover){
     if(!isCover&&!isBack)h+=`<label class="note" for="i-font" style="display:block;margin:0 0 4px;font-weight:600;color:var(--ink)">Heading font</label><select class="inp" id="i-font" data-pfont><option value="">Same as cover</option>${Object.entries(FONTS).map(([k,f])=>`<option value="${k}" ${p.font===k?'selected':''}>${f.label}</option>`).join('')}</select>`;
-    h+=`<label class="note" for="i-ts" style="display:block;margin:10px 0 4px;font-weight:600;color:var(--ink)">Text size</label><div class="range"><input type="range" id="i-ts" min="0.4" max="3" step="0.05" value="${p.ts||1}" data-ts><span id="ts-v">${Math.round((p.ts||1)*100)}%</span></div>`;
+    h+=mmField('i-ts','data-tsmm',TXM.get(p));
     if(!isCover)h+=`<span class="note" style="display:block;margin:10px 0 4px;font-weight:600;color:var(--ink)">Text colour</span>${colorRow('ink',p.ink,['','#1E1E1E','#FFFFFF',P.accent,P.title])}`;
   }
   if(!isCover)h+=`<span class="note" style="display:block;margin:10px 0 4px;font-weight:600;color:var(--ink)">Background</span>${colorRow('bg',p.bg,['','#FFFFFF','#F4EFE6',P.bg,mix(P.bg,'#FFFFFF',.5),'#1E1E1E'])}</div>`;
@@ -1511,26 +1547,33 @@ async function aiEnhance(srcC,extra){
   const im=parts.find(x=>x.inlineData||x.inline_data);if(!im)throw new Error('noimage');const dd=im.inlineData||im.inline_data;
   return loadImg(`data:${dd.mimeType||dd.mime_type||'image/png'};base64,${dd.data}`)}
 function aiErr(e){const m=String(e&&e.message||e);return m==='nokey'?'Add your Gemini key first.':m==='offline'||m==='network'?'No internet connection. AI enhance needs internet.':m==='badkey'?'Google did not accept the key. Check it in AI settings.':m==='model'?'That AI model was not found. Check the model name in AI settings.':m==='quota'?'Google says the limit for your key is reached. Try again later or check your Google AI Studio plan.':m==='noimage'?'The AI did not send back a photo. Try again, or change the request.':'The AI could not edit this photo ('+m.replace(/^server:/,'')+').'}
-/* Save the result: full, medium and small sizes are replaced; the original stays in full.orig */
-async function applyEnh(id,img,info){
+/* Brightness and contrast (-50..50), on top of the look or AI result */
+function adjBC(src,br,ct){if(!br&&!ct)return src;const c=document.createElement('canvas');c.width=src.width;c.height=src.height;const o=c.getContext('2d');o.drawImage(src,0,0);
+  const d=o.getImageData(0,0,c.width,c.height),p=d.data,C=ct*2.55,f=259*(C+255)/(255*(259-C)),b=br*1.6,lut=new Uint8ClampedArray(256);for(let v=0;v<256;v++)lut[v]=f*(v-128)+128+b;
+  for(let i=0;i<p.length;i+=4){p[i]=lut[p[i]];p[i+1]=lut[p[i+1]];p[i+2]=lut[p[i+2]]}o.putImageData(d,0,0);return c}
+/* Save the result: full, medium and small sizes are replaced; the original stays in full.orig; an AI result before brightness/contrast stays in full.ai */
+async function applyEnh(id,img,info,aiBase){
   const f=await store.get('full',id),rec=await store.get('photos',id);if(!f||!rec)return;
   const orig=f.orig||f.data;
   if(!img){if(!f.orig)return;const o=await loadImg(f.orig);await store.put('full',{id,data:f.orig});Object.assign(rec,{w:o.naturalWidth,h:o.naturalHeight,thumb:scaleTo(o,360,.8),med:scaleTo(o,1400,.85)});delete rec.enh}
-  else{await store.put('full',{id,data:scaleTo(img,3000,.9),orig});Object.assign(rec,{w:img.naturalWidth,h:img.naturalHeight,thumb:scaleTo(img,360,.8),med:scaleTo(img,1400,.85),enh:info})}
+  else{const rec2={id,data:scaleTo(img,3000,.9),orig};if(aiBase)rec2.ai=aiBase;await store.put('full',rec2);Object.assign(rec,{w:img.naturalWidth,h:img.naturalHeight,thumb:scaleTo(img,360,.8),med:scaleTo(img,1400,.85),enh:info})}
   await store.put('photos',rec);photoMeta.set(id,rec);photoFull.delete(id)}
 async function origImg(id){const f=await store.get('full',id);return f?loadImg(f.orig||f.data):null}
 async function lookImg(id,look,k){const o=await origImg(id);if(!o)return null;return loadImg(lookCanvas(toCanvas(o,3000),look,k).toDataURL('image/jpeg',.92))}
-function enhLabel(e){return !e?'':e.ai?'AI':(LOOKS[e.look]||'')}
+function enhLabel(e){return !e?'':e.ai?'AI':(LOOKS[e.look]||'Adjusted')}
 function aiSettingsHTML(cfg){return`<div class="field" style="margin-top:12px"><label class="lbl" for="ai-key">Your Gemini key</label><input class="inp" id="ai-key" type="password" autocomplete="off" value="${esc(cfg.key||'')}" placeholder="Paste your key here"><span class="hint">Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. It stays on this device. Google may charge for use beyond its free limit.</span></div>
   <div class="field"><label class="lbl" for="ai-model">AI model</label><input class="inp" id="ai-model" value="${esc(cfg.model||'')}" placeholder="${AI_DEF_MODEL}"><span class="hint">Empty = ${AI_DEF_MODEL}. Type a newer Gemini image model name here if Google releases one.</span></div>`}
 function openEnhance(id){
   const rec=photoMeta.get(id);if(!rec)return;
   const m=document.createElement('div');m.className='modal';
-  const st={mode:rec.enh?(rec.enh.ai?'ai':rec.enh.look):'auto',k:rec.enh&&!rec.enh.ai?rec.enh.k:.7,ai:null,busy:false,set:false};
+  const st={mode:rec.enh?(rec.enh.ai?'ai':rec.enh.look):'auto',k:rec.enh&&!rec.enh.ai&&rec.enh.k?rec.enh.k:.7,ai:null,busy:false,set:false,br:(rec.enh&&rec.enh.br)||0,ct:(rec.enh&&rec.enh.ct)||0};
+  const sgn=v=>(v>0?'+':'')+v;
   m.innerHTML=`<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="en-h"><div class="dlg-h"><h2 id="en-h">Enhance photo</h2><button class="icon-btn" data-x aria-label="Close">×</button></div><div class="dlg-b">
     <div class="en-ims"><figure><figcaption>Before</figcaption><canvas id="en-b"></canvas></figure><figure><figcaption id="en-al">After</figcaption><div class="en-wrap"><canvas id="en-a"></canvas><div class="en-busy" id="en-busy" hidden>AI is editing your photo…</div></div></figure></div>
     <div class="field" style="margin-top:12px"><span class="lbl">Look</span><div class="chips" id="en-looks"><button class="chip" data-look="off">Off</button>${Object.entries(LOOKS).map(([k,l])=>`<button class="chip" data-look="${k}">${l}</button>`).join('')}<button class="chip" data-look="ai">AI ✦</button></div><span class="hint" id="en-hint"></span></div>
     <div class="field" id="en-kf"><label class="lbl" for="en-k">Strength</label><div class="range"><input type="range" id="en-k" min="0.1" max="1" step="0.05" value="${st.k}"><span id="en-kv">${Math.round(st.k*100)}%</span></div></div>
+    <div class="field"><label class="lbl" for="en-br">Brightness</label><div class="range"><input type="range" id="en-br" min="-50" max="50" step="1" value="${st.br}"><span id="en-brv">${sgn(st.br)}</span></div></div>
+    <div class="field"><label class="lbl" for="en-ct">Contrast</label><div class="range"><input type="range" id="en-ct" min="-50" max="50" step="1" value="${st.ct}"><span id="en-ctv">${sgn(st.ct)}</span></div></div>
     <div id="en-aif" hidden><div class="field"><label class="lbl" for="en-x">Ask for something extra (optional)</label><input class="inp" id="en-x" placeholder="Brighter sky, remove the people in the back"><span class="hint">Your photo is sent to Google to be edited. Check the result before you keep it: AI can change small details.</span></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small primary" data-aigo>Enhance with AI</button><button class="btn small ghost" data-aiset>AI settings</button></div><div id="en-set" hidden></div></div>
   </div><div class="dlg-f"><button class="btn" data-hold>Hold to compare</button><button class="btn" data-x>Cancel</button><button class="btn primary" data-apply>Keep</button></div></div>`;
@@ -1540,11 +1583,12 @@ function openEnhance(id){
   const hint=t=>$('#en-hint',m).textContent=t||'';
   const render=()=>{if(!srcC)return;$$('#en-looks .chip',m).forEach(b=>b.setAttribute('aria-pressed',b.dataset.look===st.mode));
     const isAI=st.mode==='ai';$('#en-kf',m).hidden=isAI||st.mode==='off';$('#en-aif',m).hidden=!isAI;$('#en-al',m).textContent=st.mode==='off'?'After · original':'After · '+(isAI?'AI':LOOKS[st.mode]);
-    if(isAI){if(st.ai){draw(toCanvas(st.ai,900),ca);const lw=Math.max(st.ai.naturalWidth,st.ai.naturalHeight);hint(lw<2000?`AI result is ${st.ai.naturalWidth}×${st.ai.naturalHeight} px: fine on screen and for smaller photos; a full-page print may look a little soft.`:'')}else{draw(srcC,ca);hint(aiCfg().key?'Tap “Enhance with AI”.':'Add your Gemini key in AI settings first.')}return}
-    hint('');draw(st.mode==='off'?srcC:lookCanvas(srcC,st.mode,st.k),ca)};
-  (async()=>{const o=await origImg(id);if(!o){close();return}srcC=toCanvas(o,900);draw(srcC,cb);render();if(st.mode==='ai'&&rec.enh&&rec.enh.ai){st.ai=await loadImg(photoSrc(id,'med'));render()}})();
+    if(isAI){if(st.ai){draw(adjBC(toCanvas(st.ai,900),st.br,st.ct),ca);const lw=Math.max(st.ai.naturalWidth,st.ai.naturalHeight);hint(lw<2000?`AI result is ${st.ai.naturalWidth}×${st.ai.naturalHeight} px: fine on screen and for smaller photos; a full-page print may look a little soft.`:'')}else{draw(srcC,ca);hint(aiCfg().key?'Tap “Enhance with AI”.':'Add your Gemini key in AI settings first.')}return}
+    hint('');draw(adjBC(st.mode==='off'?srcC:lookCanvas(srcC,st.mode,st.k),st.br,st.ct),ca)};
+  (async()=>{const o=await origImg(id);if(!o){close();return}srcC=toCanvas(o,900);draw(srcC,cb);render();if(st.mode==='ai'&&rec.enh&&rec.enh.ai){const f=await store.get('full',id);if(f&&f.ai)st.ai=await loadImg(f.ai);else{st.ai=await loadImg(f?f.data:photoSrc(id,'med'));st.br=st.ct=0;$('#en-br',m).value=0;$('#en-ct',m).value=0;$('#en-brv',m).textContent='0';$('#en-ctv',m).textContent='0'}st.aiKept=true;render()}})();
   const showSet=()=>{const s=$('#en-set',m);s.hidden=false;s.innerHTML=aiSettingsHTML(aiCfg())+'<button class="btn small" data-aisave>Save AI settings</button>'};
   const k=$('#en-k',m);k.addEventListener('input',()=>{st.k=+k.value;$('#en-kv',m).textContent=Math.round(st.k*100)+'%';render()});
+  [['br','#en-br','#en-brv'],['ct','#en-ct','#en-ctv']].forEach(([key,i,v])=>{const el=$(i,m);el.addEventListener('input',()=>{st[key]=+el.value;$(v,m).textContent=sgn(st[key]);render()})});
   const hold=$('[data-hold]',m);
   hold.addEventListener('pointerdown',()=>{if(srcC)draw(srcC,ca)});['pointerup','pointerleave','pointercancel'].forEach(ev=>hold.addEventListener(ev,()=>render()));
   m.addEventListener('click',async e=>{
@@ -1554,14 +1598,16 @@ function openEnhance(id){
     if(e.target.closest('[data-aisave]')){aiSave({key:$('#ai-key',m).value.trim(),model:$('#ai-model',m).value.trim()});$('#en-set',m).hidden=true;toast('AI settings saved.');render();return}
     if(e.target.closest('[data-aigo]')){if(st.busy)return;if(!aiCfg().key){showSet();toast('Add your Gemini key first.');return}
       st.busy=true;$('#en-busy',m).hidden=false;e.target.disabled=true;
-      try{const o=await origImg(id);st.ai=await aiEnhance(toCanvas(o,3000),$('#en-x',m).value.trim());const g=$('[data-aigo]',m);g.textContent='Try again';g.classList.remove('primary')}catch(er){toast(aiErr(er))}
+      try{const o=await origImg(id);st.ai=await aiEnhance(toCanvas(o,3000),$('#en-x',m).value.trim());st.aiKept=false;const g=$('[data-aigo]',m);g.textContent='Try again';g.classList.remove('primary')}catch(er){toast(aiErr(er))}
       st.busy=false;$('#en-busy',m).hidden=true;e.target.disabled=false;render();return}
     if(e.target.closest('[data-apply]')){if(st.busy)return;
       if(st.mode==='ai'&&!st.ai){toast('Tap “Enhance with AI” first, or pick another look.');return}
       e.target.disabled=true;toast('Saving…');
-      try{if(st.mode==='off')await applyEnh(id,null);else if(st.mode==='ai'){if(!(rec.enh&&rec.enh.ai&&st.ai.src===photoSrc(id,'med')))await applyEnh(id,st.ai,{ai:true,model:(aiCfg().model||AI_DEF_MODEL)})}
-        else await applyEnh(id,await lookImg(id,st.mode,st.k),{look:st.mode,k:st.k})}catch(er){toast(er&&er.name==='QuotaExceededError'?'Storage is full. Delete a book first.':'Could not save the photo.');e.target.disabled=false;return}
-      close();touch();renderStage();renderInsp();renderStrip();toast(st.mode==='off'?'Original photo back.':'Photo enhanced.')}
+      const bc=st.br||st.ct?{br:st.br,ct:st.ct}:{};
+      try{if(st.mode==='off'){if(st.br||st.ct){const o=await origImg(id);await applyEnh(id,await loadImg(adjBC(toCanvas(o,3000),st.br,st.ct).toDataURL('image/jpeg',.92)),{look:'off',...bc})}else await applyEnh(id,null)}
+        else if(st.mode==='ai'){const model=st.aiKept&&rec.enh&&rec.enh.model||aiCfg().model||AI_DEF_MODEL;const fin=st.br||st.ct?await loadImg(adjBC(toCanvas(st.ai,3000),st.br,st.ct).toDataURL('image/jpeg',.92)):st.ai;await applyEnh(id,fin,{ai:true,model,...bc},st.ai.src)}
+        else{const o=await origImg(id);await applyEnh(id,await loadImg(adjBC(lookCanvas(toCanvas(o,3000),st.mode,st.k),st.br,st.ct).toDataURL('image/jpeg',.92)),{look:st.mode,k:st.k,...bc})}}catch(er){toast(er&&er.name==='QuotaExceededError'?'Storage is full. Delete a book first.':'Could not save the photo.');e.target.disabled=false;return}
+      close();touch();renderStage();renderInsp();renderStrip();toast(st.mode==='off'&&!st.br&&!st.ct?'Original photo back.':'Photo enhanced.')}
   });
 }
 /* Book settings: all photos at once */
@@ -1585,7 +1631,7 @@ function openEnhanceAll(bk){
     close();let stop=false,done=0,fail=0,lastErr='';
     for(const id of ids){if(stop)break;toastAction(`Enhancing photo ${done+fail+1} of ${ids.length}…`,'Stop',()=>{stop=true},600000);
       try{if(mode==='off')await applyEnh(id,null);else if(mode==='auto')await applyEnh(id,await lookImg(id,'auto',.7),{look:'auto',k:.7});
-        else{const o=await origImg(id);await applyEnh(id,await aiEnhance(toCanvas(o,3000),''),{ai:true,model:(aiCfg().model||AI_DEF_MODEL)})}done++}
+        else{const o=await origImg(id);{const ai=await aiEnhance(toCanvas(o,3000),'');await applyEnh(id,ai,{ai:true,model:(aiCfg().model||AI_DEF_MODEL)},ai.src)}}done++}
       catch(er){fail++;lastErr=aiErr(er);if(/key|internet|limit/.test(lastErr))break}
       await wait(0)}
     touch();renderStage();renderInsp();renderStrip();
@@ -1905,10 +1951,10 @@ document.addEventListener('input',e=>{
   if(t.dataset.bk){bk[t.dataset.bk]=t.value;if(t.dataset.bk==='title'&&!bk.name)$('.top .title-edit').firstChild.nodeValue=(t.value||'Untitled')+' ';return changed()}
   if(t.dataset.text){p.text[t.dataset.text]=t.value;return changed()}
   if(t.dataset.stop){p.stops[+t.dataset.stop][t.dataset.f]=t.value;return changed()}
-  if('ts'in t.dataset){p.ts=+t.value;$('#ts-v').textContent=Math.round(p.ts*100)+'%';return changed()}
+  if('tsmm'in t.dataset){const v=parseFloat(t.value),info=TXM.get(p);if(info&&v>0){p.ts=v/mmOf(info,1);return changed()}return}
   if(t.dataset.colorpick){const k=t.dataset.colorpick;if(k==='spbg')bk.spine.bg=t.value;else if(k==='spink')bk.spine.ink=t.value;else p[k]=t.value;return changed()}
   if(t.dataset.sppart){const k=t.dataset.sppart;bk.spine.parts=bk.spine.parts||{};bk.spine.parts[k]={...(bk.spine.parts[k]||{}),val:t.value};return changed()}
-  if('spSize'in t.dataset){bk.spine.size=+t.value;$('#sp-size-v').textContent=Math.round(bk.spine.size*100)+'%';return changed()}
+  if('spmm'in t.dataset){const v=parseFloat(t.value),info=SPM.get(bk);if(info&&v>0){bk.spine.size=v/mmOf(info,1);return changed()}return}
   if('spMm'in t.dataset){const v=parseFloat(t.value);bk.spine.mm=v>=3&&v<=60?v:null;return changed()}
   if(t.dataset.zoom!==undefined){const s2=p.photos[+t.dataset.zoom];if(s2){s2.z=+t.value;return changed()}}
   if('phh'in t.dataset){bk.cover.phH=+t.value;$('#phh-v').textContent=Math.round(bk.cover.phH*100)+'%';return changed()}
@@ -1917,6 +1963,10 @@ document.addEventListener('input',e=>{
   if(ss&&'srot'in t.dataset){ss.r=+t.value;return changed()}
 });
 document.addEventListener('change',e=>{const t=e.target;
+  if(S.view==='edit'&&('tsmm'in t.dataset||'spmm'in t.dataset)){const sp='spmm'in t.dataset,bk=S.book,o=sp?bk.spine:curPage(),key=sp?'size':'ts',info=sp?SPM.get(bk):TXM.get(o);if(!info)return;
+    const lo=(sp?1.5:3)/mmOf(info,1),v=parseFloat(t.value),want=v>0?v/mmOf(info,1):(o[key]||1),k=clamp(want,Math.min(lo,info.max),info.max);
+    if(want>info.max+1e-6)toast(`Largest that fits here: ${Math.floor(mmOf(info,info.max)*10)/10} mm.`);else if(want<lo-1e-6)toast(`Smallest: ${sp?1.5:3} mm.`);
+    o[key]=k;return changed({insp:true})}
   if(S.view==='edit'&&'spIcon'in t.dataset){S.book.spine.icon=t.checked;changed();return}
   if(S.view==='edit'&&t.dataset.spon){const sp=S.book.spine;sp.parts=sp.parts||{};sp.parts[t.dataset.spon]={...(sp.parts[t.dataset.spon]||{}),on:t.checked};changed();return}
   if(S.view==='edit'&&t.dataset.back){const b=S.book.back;b[t.dataset.back]=t.checked;if(t.dataset.back==='showPhoto'&&t.checked)fillEmpty(S.book,b,1);changed({insp:true});return}if(S.view==='edit'&&'pfont'in t.dataset){curPage().font=t.value;changed()}if(S.view==='edit'&&t.dataset.colorpick)renderInsp()});

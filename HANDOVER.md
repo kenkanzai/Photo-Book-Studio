@@ -15,9 +15,11 @@ A single-file photobook app (index.html). Installable on phone and laptop from G
 - New book: step 1 details and photos, step 2 cover (8 styles, 10 colour sets, 13 illustrations, 6 fonts).
 - Page layouts (▦ window): Photo + caption, Full page, Across 2 pages, 2 stacked, 2 side by side, 1 big + 2, 4 grid, Collage, 6 grid, Centered photo, 2 scattered, 3 scattered, Title page, Place page, Travel route, Words only.
 - Trip with stops: auto-adds a Travel route page and a Place page before each stop's photos.
-- Full-photo caption is a text box: drag it to move (stays inside the page); 8 handles like a Word text box: corners change width and height, sides change width, top/bottom change height; the text keeps its size and rewraps (letter size only via Text size). 'Fit to text' returns to auto size; behind it: soft shadow, dark band, light box or nothing.
-- Text alignment (Left, Centre, Right, Justify) on the caption, Page 1 quote, Words only, Photo + caption and the back cover. Empty = layout default (caption left; quote, Words only and back cover centred; Photo + caption left).
-- Every page: text, font, text size, text colour, background, stickers (drag to move).
+- Full-photo caption is a text box: drag it to move (stays inside the page); 8 handles like a Word text box: corners change width and height, sides change width, top/bottom change height; the text keeps its size and rewraps (letter size only via Text height). 'Fit to text' returns to auto size; behind it: soft shadow, dark band, light box or nothing.
+- Text alignment (Left, Centre, Right, Justify): for the full-photo caption it is a small bar right under the caption box on the page (not in the side panel); for Page 1 quote, Words only, Photo + caption and the back cover. Empty = layout default (caption left; quote, Words only and back cover centred; Photo + caption left).
+- Every page: text, font, text height, text colour, background, stickers (drag to move).
+- Text height (cover title, pages, back cover, spine): a number box in mm = height of a capital letter of the main text (cover title, page heading, or the body when there is no heading). Other text on the page keeps its proportion. Stored as the old size factor (page.ts, spine.size); mm = factor × size at 100% × capital height of the font (measured, capR()) ÷ 3.937 px per mm (pages are 100 px per inch).
+- Text never breaks a word or leaves its area: txLimit() finds the largest size that fits (whole words, block height inside the area) and the page is always drawn at no more than that. The box says the range that fits; typing more stops at the largest and says so. Smallest: 3 mm (spine 1.5 mm).
 - Outside of the book: the cover screen shows Back | Spine | Front; tap a part (or the tabs) to edit it.
 - Spine words: Name, Title, Place, Date — each ticked on/off, each copies the cover (title, country/name, year) until typed over; separator • · | or space. Plus font, size, colours, ✈ on/off, width in mm (empty = from page count).
 - Front cover panel order: Cover photo → Words (title, region, year, title font, text size) → Colours (+ background) → Picture → Stickers.
@@ -40,12 +42,12 @@ A single-file photobook app (index.html). Installable on phone and laptop from G
 - Book name: rename on the shelf (pencil next to the name) or in Book settings. Only the shelf name changes; the cover title stays.
 
 ## Photo enhance
-- Side panel → photo → Enhance opens a window: Before / After, looks Off, Auto, Vivid, Warm, Cool, B&W (on the device, offline, with Strength), and AI ✦ (online).
+- ✦ button on the top-right of each photo on the page (moves left of the ▦ layout button when they would touch; filled when the photo is enhanced) opens the Enhance window: Before / After, looks Off, Auto, Vivid, Warm, Cool, B&W (on the device, offline, with Strength), and AI ✦ (online). Brightness and Contrast (−50 to +50) work with any look, Off and AI.
 - AI ✦: Google Gemini image editing (default model gemini-2.5-flash-image, changeable in AI settings). Optional extra request, e.g. "brighter sky". Try again gives a new version. The prompt asks for a realistic professional edit that keeps people, faces and details.
 - AI settings (in the Enhance window): the user's own Gemini key (from aistudio.google.com/apikey) and model name, kept on the device (localStorage 'pbs-ai'). The app never contains a key.
 - If the AI result is under 2000 px on its long side, the window says a full-page print may look a little soft.
 - Book settings → Enhance all photos: Auto (offline), AI (online, one by one, with Stop), or put all originals back. Already enhanced photos are skipped.
-- Saving: the enhanced picture replaces the full, medium and small sizes (so the page view and PDF use it); the original stays in the 'full' record as orig. Off brings it back. Photo record has enh: {look,k} or {ai:true,model}. Backups include the originals.
+- Saving: the enhanced picture replaces the full, medium and small sizes (so the page view and PDF use it); the original stays in the 'full' record as orig. Off brings it back. Photo record has enh: {look,k,br,ct} or {ai:true,model,br,ct}; look 'off' with br/ct = brightness/contrast only. An AI result is kept before brightness/contrast in full.ai so they can be changed later (not in backups; after a restore, the adjusted photo becomes the new start). Backups include the originals.
 
 ## Privacy and security
 - No outside connections: fonts (Anton, Archivo Black, Caveat, Cormorant Garamond, Figtree, Montserrat, Playfair Display — latin) and the PDF tools (html2canvas 1.4.1, jsPDF 2.5.1, MIT) are built into index.html. Works offline from the first visit.

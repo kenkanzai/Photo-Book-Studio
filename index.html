@@ -166,9 +166,6 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.45}
 .stage .nav{position:absolute;top:50%;transform:translateY(-50%);z-index:3;box-shadow:0 1px 4px rgba(0,0,0,.18)}
 .stage .nav:disabled{opacity:.35;cursor:default}
 .stage .nav.prev{left:12px}.stage .nav.next{right:12px}
-.stage .zw{position:absolute;inset:0;overflow:auto;display:flex;padding:20px;touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch}
-.stage .zw>.book{margin:auto;flex:none}
-.stage .zoom-fit{position:absolute;top:10px;right:10px;z-index:4;box-shadow:0 1px 4px rgba(0,0,0,.18)}
 .stage .pos{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:13px;font-weight:600;color:var(--muted)}
 .strip{grid-column:1;grid-row:2;display:flex;gap:10px;align-items:flex-end;overflow-x:auto;padding:12px 16px;border-top:1px solid var(--line);background:var(--bg)}
 .thumb{position:relative;cursor:pointer;touch-action:pan-x;user-select:none;-webkit-user-select:none;border:0;background:none;padding:0;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;color:var(--muted);font-weight:600}
@@ -216,7 +213,6 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.45}
 @media (max-width:860px){
   .ed{display:flex;flex-direction:column;height:auto}
   .stage{height:62vh;min-height:320px;padding:12px}
-  .stage .zw{padding:12px}
   .strip{order:2}
   .insp{order:3;border-left:0;border-top:1px solid var(--line)}
   .top .hide-sm{display:none}
@@ -1219,15 +1215,13 @@ function renderEditor(){
 function renderStage(){
   const st=$('#stage');if(!st)return;const bk=S.book,{W,H}=SIZES[bk.size];
   const n=narrow();const idxs=n?[S.sel]:spreadPages(S.spread);
-  const zk=(n?'p'+S.sel:'s'+S.spread);if(S.zoomKey!==zk){S.zoomKey=zk;S.zoom=1}const Z=S.zoom||1;
-  const oz=$('#zw',st),keep=oz&&Z>1?[oz.scrollLeft,oz.scrollTop]:null;
   const aw=st.clientWidth-(n?40:140),ah=st.clientHeight-(n?40:70);
   const cols=idxs.length; // last single page keeps spread size
-  const sc=Math.max(.05,Math.min(aw/(W*Math.max(cols,1)),ah/H))*Z;
+  const sc=Math.max(.05,Math.min(aw/(W*Math.max(cols,1)),ah/H));
   const P=pal(bk.cover.palette),board=mix(P.bg,'#000000',.3);
   let boxes;
   const lb=(i,side)=>`<button class="lay-btn ${side}" data-laybtn="${i}" aria-label="Change layout"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg></button>`;
-  if(idxs.length===1&&idxs[0]===0){const sw=spinePx(bk),fsc=Math.max(.05,Math.min(aw/(2*W+sw),ah/H))*Z,pt=S.coverPart||'front';
+  if(idxs.length===1&&idxs[0]===0){const sw=spinePx(bk),fsc=Math.max(.05,Math.min(aw/(2*W+sw),ah/H)),pt=S.coverPart||'front';
     const tag=(t)=>`<span class="part-tag">${t}</span>`;
     boxes=`<div class="book flat">${scaleWrap(backHTML(bk,'med'),fsc,W,H,'data-part="back"',' part'+(pt==='back'?' sel':''),tag('Back'))}${scaleWrap(spineHTML(bk),fsc,sw,H,'data-part="spine"',' part spine-box'+(pt==='spine'?' sel':''),tag('Spine'))}${boxHTML(bk,bk.pages[0],fsc,'med','data-pi="0" data-part="front"',' part'+(pt==='front'?' sel':''),lb(0,'r')+tag('Front'))}</div>`;
     st.dataset.scale=fsc}
@@ -1236,14 +1230,13 @@ function renderStage(){
   const total=spreadCount();
   const label=n?(S.sel===0?'Outside of the book: tap back, spine or front to edit':`Page ${S.sel} of ${bk.pages.length-1}`):(S.spread===0?'Outside of the book: tap back, spine or front to edit':(realPages(idxs).length>1?`Pages ${realPages(idxs).join('–')}`:`Page ${realPages(idxs)[0]}`)+` of ${bk.pages.length-1}`);
   const canPrev=n?S.sel>0:S.spread>0,canNext=n?S.sel<bk.pages.length-1:S.spread<total-1;
-  st.innerHTML=`<div class="zw" id="zw">${boxes}</div>${Z>1.01?'<button class="btn small zoom-fit" data-act="zoomfit">Fit page</button>':''}<button class="icon-btn nav prev" data-act="prev" aria-label="Previous" ${canPrev?'':'disabled'}>‹</button><button class="icon-btn nav next" data-act="next" aria-label="Next" ${canNext?'':'disabled'}>›</button><div class="pos">${label}</div>`;
-  if(keep){const z=$('#zw',st);z.scrollLeft=keep[0];z.scrollTop=keep[1]}
+  st.innerHTML=`${boxes}<button class="icon-btn nav prev" data-act="prev" aria-label="Previous" ${canPrev?'':'disabled'}>‹</button><button class="icon-btn nav next" data-act="next" aria-label="Next" ${canNext?'':'disabled'}>›</button><div class="pos">${label}</div>`;
   if(!(idxs.length===1&&idxs[0]===0))st.dataset.scale=sc;
   if(S.stickerSel){const el=st.querySelector(`.pgbox.sel .st[data-sid="${S.stickerSel}"]`);el&&el.classList.add('on')}
   drawCapHandles();
 }
-function drawCapHandles(){const st=$('#zw');if(!st)return;const c=st.querySelector('.pgbox.sel .pg .cap');if(!c)return;const sr=st.getBoundingClientRect(),r=c.getBoundingClientRect(),g=5;
-  const o=document.createElement('div');o.className='cap-ov';Object.assign(o.style,{left:(r.left-sr.left+st.scrollLeft-g)+'px',top:(r.top-sr.top+st.scrollTop-g)+'px',width:(r.width+2*g)+'px',height:(r.height+2*g)+'px'});
+function drawCapHandles(){const st=$('#stage');if(!st)return;const c=st.querySelector('.pgbox.sel .pg .cap');if(!c)return;const sr=st.getBoundingClientRect(),r=c.getBoundingClientRect(),g=5;
+  const o=document.createElement('div');o.className='cap-ov';Object.assign(o.style,{left:(r.left-sr.left-g)+'px',top:(r.top-sr.top-g)+'px',width:(r.width+2*g)+'px',height:(r.height+2*g)+'px'});
   o.innerHTML=['tl','tr','bl','br'].map(h=>`<i class="c" data-h="${h}" title="Drag to resize the box"></i>`).join('')+['l','r'].map(h=>`<i class="s" data-h="${h}" title="Drag to change the width"></i>`).join('')+['t','b'].map(h=>`<i class="v" data-h="${h}" title="Drag to change the height"></i>`).join('');st.appendChild(o)}
 function renderStrip(){
   const sp=$('#strip');if(!sp)return;const bk=S.book,{W,H}=SIZES[bk.size];const sc=74/H;
@@ -1818,7 +1811,6 @@ document.addEventListener('click',async e=>{
     case 'book':return openBookSettings();
     case 'preview':return openPreview();
     case 'export':return exportPDF();
-    case 'zoomfit':S.zoom=1;return renderStage();
     case 'prev':if(narrow())return select(S.sel-1);S.spread=Math.max(0,S.spread-1);return select(S.spread===0?0:realPages(spreadPages(S.spread))[0]);
     case 'next':if(narrow())return select(S.sel+1);S.spread=Math.min(spreadCount()-1,S.spread+1);return select(realPages(spreadPages(S.spread))[0]);
     case 'addpage':{const np=newPage('full');bk.pages.splice(S.sel+1,0,np);touch();select(S.sel+1);return}
@@ -1982,27 +1974,26 @@ document.addEventListener('keydown',e=>{
   if(e.key==='ArrowLeft'){e.preventDefault();select(S.sel-1)}
   if((e.key==='Delete'||e.key==='Backspace')&&S.stickerSel){const p=curPage();p.stickers=p.stickers.filter(s=>s.id!==S.stickerSel);S.stickerSel=null;changed({insp:true})}
 });
-/* Zoom the page view: pinch with two fingers (phone) or Ctrl + scroll / trackpad pinch (computer). "Fit page" goes back. */
-const ZMAX=4;
-function zoomTo(nz,frac,fx,fy){const zw=$('#zw');if(!zw)return;nz=clamp(nz,1,ZMAX);if(nz<1.04)nz=1;S.zoom=nz;renderStage();
-  const z2=$('#zw'),bk=z2&&z2.querySelector('.book');if(!bk||!frac)return;const zr=z2.getBoundingClientRect();
-  z2.scrollLeft=bk.offsetLeft+frac[0]*bk.offsetWidth-(fx-zr.left);z2.scrollTop=bk.offsetTop+frac[1]*bk.offsetHeight-(fy-zr.top)}
-function stopDrags(){
-  if(pan){pan.s.fx=pan.fx;pan.s.fy=pan.fy;pan.el.style.backgroundPosition=`${r1(pan.fx*100)}% ${r1(pan.fy*100)}%`;pan=null}
-  const moved=(cdrag&&cdrag.moved)||(hdrag&&hdrag.moved)||(drag&&drag.moved);cdrag=hdrag=drag=null;if(moved)touch()}
-let pinch=null;
-const mid=t=>[(t[0].clientX+t[1].clientX)/2,(t[0].clientY+t[1].clientY)/2],gap=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY)||1;
-document.addEventListener('touchstart',e=>{if(S.view!=='edit'||e.touches.length!==2)return;const zw=$('#zw');if(!zw||!zw.contains(e.target))return;
-  const bk=zw.querySelector('.book');if(!bk)return;stopDrags();e.preventDefault();const m=mid(e.touches),r=bk.getBoundingClientRect();
-  pinch={bk,d0:gap(e.touches),m0:m,m:m,r:1,z0:S.zoom||1,frac:[clamp((m[0]-r.left)/r.width,0,1),clamp((m[1]-r.top)/r.height,0,1)]};
-  bk.style.transformOrigin=`${pinch.frac[0]*100}% ${pinch.frac[1]*100}%`;bk.style.willChange='transform'},{passive:false,capture:true});
-document.addEventListener('touchmove',e=>{if(!pinch)return;e.preventDefault();if(e.touches.length<2)return;const p=pinch;p.m=mid(e.touches);
-  p.r=clamp(gap(e.touches)/p.d0,1/p.z0,ZMAX/p.z0);p.bk.style.transform=`translate(${p.m[0]-p.m0[0]}px,${p.m[1]-p.m0[1]}px) scale(${p.r})`},{passive:false,capture:true});
-const pinchEnd=e=>{if(!pinch||(e.touches&&e.touches.length>=2))return;const p=pinch;pinch=null;p.bk.style.transform='';zoomTo(p.z0*p.r,p.frac,p.m[0],p.m[1])};
+/* Pinch a photo with two fingers to zoom it inside its frame (same as the Zoom slider, 1x to 3x) */
+const PH_SEL='.stage .pgbox[data-pi] .ph[data-slot]:not(.empty),.stage .pgbox[data-pi] .ph[data-half],.stage .pgbox[data-part="back"] .ph[data-slot]:not(.empty)';
+function slotOfEl(el){const bx=el.closest('.pgbox'),isBack=bx.dataset.part==='back',pi=isBack?0:+bx.dataset.pi-(el.dataset.half?1:0),j=el.dataset.half?0:+el.dataset.slot;return(isBack?S.book.back:S.book.pages[pi]).photos[j]}
+let pinch=null,pinRaf=0;
+/* Resize the photo in place while pinching (the page is not re-drawn until the fingers lift) */
+function liveZoom(el,s){const m=photoMeta.get(s.id);if(!m||!m.w)return;const z=s.z||1;
+  if(el.dataset.span==='2'){$$('.stage .ph[data-span="2"]').forEach(h=>{const W=parseFloat(h.style.width),H=parseFloat(h.style.height),half=h.dataset.half?1:0,k=Math.max(2*W/m.w,H/m.h)*z,iw=m.w*k,ih=m.h*k;
+    h.style.backgroundSize=`${r1(iw)}px ${r1(ih)}px`;h.style.backgroundPosition=`${r1((2*W-iw)*(s.fx??.5)-half*W)}px ${r1((H-ih)*(s.fy??.5))}px`});return}
+  const w=parseFloat(el.style.width),h=parseFloat(el.style.height),k=Math.max(w/m.w,h/m.h)*z;el.style.backgroundSize=`${r1(m.w*k)}px ${r1(m.h*k)}px`}
+const gap=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY)||1;
+document.addEventListener('touchstart',e=>{if(S.view!=='edit'||e.touches.length!==2)return;
+  const t=e.touches,el=[...t].map(x=>document.elementFromPoint(x.clientX,x.clientY)).map(x=>x&&x.closest(PH_SEL)).find(Boolean)||document.elementFromPoint((t[0].clientX+t[1].clientX)/2,(t[0].clientY+t[1].clientY)/2)?.closest(PH_SEL);
+  if(!el)return;const s=slotOfEl(el);if(!s)return;e.preventDefault();
+  if(pan){pan.s.fx=pan.fx;pan.s.fy=pan.fy;pan=null}
+  pinch={s,el,d0:gap(t),z0:s.z||1}},{passive:false,capture:true});
+document.addEventListener('touchmove',e=>{if(!pinch)return;e.preventDefault();if(e.touches.length<2)return;
+  pinch.s.z=Math.round(clamp(pinch.z0*gap(e.touches)/pinch.d0,1,3)*100)/100;
+  if(!pinRaf)pinRaf=requestAnimationFrame(()=>{pinRaf=0;if(pinch)liveZoom(pinch.el,pinch.s)})},{passive:false,capture:true});
+const pinchEnd=e=>{if(!pinch||(e.touches&&e.touches.length>=2))return;const moved=pinch.s.z!==pinch.z0;pinch=null;if(moved){panJustMoved=true;setTimeout(()=>panJustMoved=false,400);changed({insp:true})}};
 document.addEventListener('touchend',pinchEnd,true);document.addEventListener('touchcancel',pinchEnd,true);
-let wz=null;document.addEventListener('wheel',e=>{if(!e.ctrlKey||S.view!=='edit')return;const zw=$('#zw');if(!zw||!zw.contains(e.target))return;e.preventDefault();
-  const bk=zw.querySelector('.book');if(!bk)return;const r=bk.getBoundingClientRect();const pw=wz;wz={t:pw&&pw.t,z:(pw?pw.z:S.zoom||1)*Math.exp(-e.deltaY*.01),x:e.clientX,y:e.clientY,frac:[clamp((e.clientX-r.left)/r.width,0,1),clamp((e.clientY-r.top)/r.height,0,1)]};
-  if(!wz.t)wz.t=requestAnimationFrame(()=>{const w=wz;wz=null;zoomTo(w.z,w.frac,w.x,w.y)})},{passive:false});
 let rzT=null;window.addEventListener('resize',()=>{clearTimeout(rzT);rzT=setTimeout(()=>{if(S.view==='edit')renderStage()},120)});
 window.addEventListener('pagehide',()=>{if(S.book)saveBook()});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&S.book)saveBook()});

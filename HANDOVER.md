@@ -31,7 +31,7 @@ A single-file photobook app (index.html). Installable on phone and laptop from G
 - Page strip: drag a page to move it (phone: hold, then drag); × deletes it.
 - Undo / redo: ↶ ↷ in the top bar, or Ctrl+Z / Ctrl+Y. Up to 60 steps per open book.
 - One photo, one place: a photo can only be on one spot; picking a used photo moves it.
-- Zoom the page view: pinch with two fingers (phone) or Ctrl + scroll / trackpad pinch (computer), up to 4×. Move around with two fingers or by scrolling the space around the page. 'Fit page' (top right) goes back; changing page also goes back to fit. Zoom only re-draws the page larger, so photo, caption and sticker dragging work the same when zoomed.
+- Photo zoom: pinch a photo with two fingers to zoom it inside its frame (1× to 3×), the same value as the Zoom slider in the side panel. One finger drags to choose the part that shows. On a laptop, trackpad pinch or Ctrl + mouse wheel on a photo does the same. Inside the page area the browser's own zoom is blocked (stage touch-action: pan-y, Ctrl+wheel prevented), so only the photo zooms.
 - Layouts: ▦ button on each page corner. Photos: tap to change, drag to move the view.
 - Book view: the editor shows pages as an open book (cover as a closed book / flat Back | Spine | Front). Preview opens a 3D book you can turn, and pages turn like a real book.
 - Book name: rename on the shelf (pencil next to the name) or in Book settings. Only the shelf name changes; the cover title stays.

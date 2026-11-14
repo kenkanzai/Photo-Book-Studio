@@ -157,6 +157,7 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.45}
 /* Editor */
 .ed{display:grid;grid-template-columns:minmax(0,1fr) 340px;grid-template-rows:minmax(0,1fr) auto;height:calc(100dvh - 67px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
 .stage{grid-column:1;grid-row:1;position:relative;display:flex;align-items:center;justify-content:center;gap:0;padding:20px;background:var(--desk);min-height:0;overflow:hidden}
+.stage{touch-action:pan-y}
 .stage .spread{display:flex;box-shadow:var(--shadow)}
 .stage .pgbox{cursor:pointer}
 .stage .pgbox.sel{outline:3px solid var(--accent);outline-offset:-3px;z-index:1}
@@ -1994,6 +1995,17 @@ document.addEventListener('touchmove',e=>{if(!pinch)return;e.preventDefault();if
   if(!pinRaf)pinRaf=requestAnimationFrame(()=>{pinRaf=0;if(pinch)liveZoom(pinch.el,pinch.s)})},{passive:false,capture:true});
 const pinchEnd=e=>{if(!pinch||(e.touches&&e.touches.length>=2))return;const moved=pinch.s.z!==pinch.z0;pinch=null;if(moved){panJustMoved=true;setTimeout(()=>panJustMoved=false,400);changed({insp:true})}};
 document.addEventListener('touchend',pinchEnd,true);document.addEventListener('touchcancel',pinchEnd,true);
+/* Laptop: trackpad pinch or Ctrl + mouse wheel on a photo zooms the photo; on the page area the browser never zooms */
+let wzT=null;
+document.addEventListener('wheel',e=>{if(!e.ctrlKey||S.view!=='edit'||!e.target.closest('.stage'))return;e.preventDefault();
+  const el=e.target.closest(PH_SEL);if(!el)return;const s=slotOfEl(el);if(!s)return;
+  s.z=Math.round(clamp((s.z||1)*Math.exp(-e.deltaY*.01),1,3)*100)/100;liveZoom(el,s);
+  clearTimeout(wzT);wzT=setTimeout(()=>{panJustMoved=true;setTimeout(()=>panJustMoved=false,400);changed({insp:true})},250)},{passive:false});
+/* Safari on Mac sends its own pinch events */
+let gz=null;
+document.addEventListener('gesturestart',e=>{if(S.view!=='edit'||!e.target.closest||!e.target.closest('.stage'))return;e.preventDefault();const el=e.target.closest(PH_SEL),s=el&&slotOfEl(el);gz=s?{el,s,z0:s.z||1}:{}},{passive:false});
+document.addEventListener('gesturechange',e=>{if(!gz)return;e.preventDefault();if(!gz.s)return;gz.s.z=Math.round(clamp(gz.z0*e.scale,1,3)*100)/100;liveZoom(gz.el,gz.s)},{passive:false});
+document.addEventListener('gestureend',e=>{if(!gz)return;e.preventDefault();const g=gz;gz=null;if(g.s&&g.s.z!==g.z0)changed({insp:true})},{passive:false});
 let rzT=null;window.addEventListener('resize',()=>{clearTimeout(rzT);rzT=setTimeout(()=>{if(S.view==='edit')renderStage()},120)});
 window.addEventListener('pagehide',()=>{if(S.book)saveBook()});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&S.book)saveBook()});

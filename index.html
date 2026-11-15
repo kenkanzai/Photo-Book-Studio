@@ -927,7 +927,7 @@ async function importFiles(files,bookId,onProgress){
 }
 
 /* ========== Page model ========== */
-function newPage(layout,extra={}){return Object.assign({id:uid(),layout,photos:[],text:{title:'',sub:'',body:''},bg:'',ink:'',font:'',ts:1,motif:'',stops:[],stickers:[]},extra)}
+function newPage(layout,extra={}){return Object.assign({id:uid(),layout,photos:[],text:{title:'',sub:'',body:''},bg:'',ink:'',font:'',ts:1,motif:'',stops:[],stickers:[],boxes:[]},extra)}
 function slot(id){return id?{id,fx:.5,fy:.5}:null}
 
 /* Text measuring: uses the real font when loaded, the fallback otherwise, so titles never break mid-word */
@@ -1065,16 +1065,9 @@ function pageHTML(book,page,q){
       x=slotRects(page.layout,W,H).map((rc,i)=>`<div class="fr" style="left:${r1(rc[0])}px;top:${r1(rc[1])}px;width:${r1(rc[2])}px;height:${r1(rc[3])}px;transform:rotate(${rc[4]}deg)">${phDiv(ph[i],b,b,rc[2]-2*b,rc[3]-2*b,q,'',i)}</div>`).join('');break}
     default:{ // full, two, three, grid4
       x=slotRects(page.layout,W,H).map((rc,i)=>phDiv(ph[i],rc[0],rc[1],rc[2],rc[3],q,'',i)).join('');
-      let K=ts;const f0=Math.min(W,H)*.06;
-      if(page.layout==='full'){const cp=capOf(page),cw=cp.w?cp.w*W:W*.84;K=txLimit(page,ts,fk,f0,k=>blockH(tx.title,fk,f0*k,cw,1.05)+(tx.sub?4+blockH(tx.sub,'montserrat',f0*k*.32,cw,1.25,.22):0)<=H*.9)}
-      const ced=CAPEDIT===page&&q==='med';
-      if(page.layout==='full'&&(tx.title||tx.sub||ced)){const fs=f0*K;const cp=capOf(page);
-        const col=page.ink||(cp.style==='box'?'#1E1E1E':'#FFFFFF');const al=page.align||(cp.ax===0?'left':cp.ax===100?'right':'center');const AC=alignCSS(al);const pad=Math.min(W,H)*.025;
-        const back=cp.style==='band'?`background:rgba(0,0,0,.48);padding:${r1(pad)}px ${r1(pad*1.3)}px;border-radius:${r1(pad*.4)}px;`:cp.style==='box'?`background:rgba(255,255,255,.88);padding:${r1(pad)}px ${r1(pad*1.3)}px;border-radius:${r1(pad*.4)}px;`:cp.style==='shadow'?'text-shadow:0 2px 12px rgba(0,0,0,.5);':'';
-        x+=`<div class="fl cap${ced?' editing':''}" style="left:${r1(cp.x*W)}px;top:${r1(cp.y*H)}px;${cp.w?`width:${r1(cp.w*W)}px;`:`width:max-content;max-width:${r1(W*.84)}px;`}${cp.h?`min-height:${r1(cp.h*H)}px;justify-content:center;`:''}transform:translate(-${cp.ax}%,-${cp.ay}%);align-items:${AC.items};${AC.text}gap:4px;${back}">${tx.title||ced?CF('title',dispCSS(fk,fs,col,'line-height:1.05;'),tx.title,ced&&'Type a caption'):''}${tx.sub||ced?CF('sub',spaced(fs*.32,col),tx.sub,ced&&'Place or date'):''}</div>`}
     }
   }
-  return`<div class="pg" style="width:${W}px;height:${H}px;background:${bg}">${x}${stickersHTML(page,W,H)}</div>`;
+  return`<div class="pg" style="width:${W}px;height:${H}px;background:${bg}">${x}${boxesHTML(page,q,W,H,fk,bg)}${stickersHTML(page,W,H)}</div>`;
 }
 function boxHTML(book,page,scale,q,attrs='',cls='',over=''){const{W,H}=SIZES[book.size];return`<div class="pgbox${cls}" ${attrs} style="width:${r1(W*scale)}px;height:${r1(H*scale)}px">${pageHTML(book,page,q).replace('class="pg" style="','class="pg" style="transform:scale('+scale+');')}${over}</div>`}
 /* Spine parts: Name, Title, Place, Date. Each follows the cover until typed over, and can be turned off */
@@ -1107,7 +1100,7 @@ function spinePrev(bk){const{H}=SIZES[bk.size],sw=spinePx(bk),k=40/sw;return`<di
 function allP(bk){return[bk.pages[0],bk.back,...bk.pages.slice(1)].filter(Boolean)}
 function placeName(bk,p){if(p===bk.back)return'Back cover';const i=bk.pages.indexOf(p);return i===0?'Cover':'Page '+i}
 function curPage(){const bk=S.book;return S.sel===0&&S.coverPart==='back'&&bk.back?bk.back:bk.pages[S.sel]}
-function ensureCoverParts(bk){if(!bk.pages[1]||!bk.pages[1].quote){const q=bk.pages.findIndex(x=>x.quote);if(q>1)bk.pages.splice(1,0,bk.pages.splice(q,1)[0]);else bk.pages.splice(1,0,newPage('note',{quote:true}))}if(!bk.spine)bk.spine={};if(bk.spine.text){bk.spine.parts={title:{on:true,val:bk.spine.text},name:{on:false},place:{on:false},date:{on:false}};delete bk.spine.text}if(!bk.back)bk.back=newPage('back',{showPhoto:false,motifOn:true})}
+function ensureCoverParts(bk){migrateBoxes(bk);if(!bk.pages[1]||!bk.pages[1].quote){const q=bk.pages.findIndex(x=>x.quote);if(q>1)bk.pages.splice(1,0,bk.pages.splice(q,1)[0]);else bk.pages.splice(1,0,newPage('note',{quote:true}))}if(!bk.spine)bk.spine={};if(bk.spine.text){bk.spine.parts={title:{on:true,val:bk.spine.text},name:{on:false},place:{on:false},date:{on:false}};delete bk.spine.text}if(!bk.back)bk.back=newPage('back',{showPhoto:false,motifOn:true})}
 function coverSlots(bk){return Math.max((COVER_STYLES.find(c=>c.id===bk.cover.style)||{}).photos||0,bk.cover.motif==='photo'?1:0)}
 function slotCount(bk,p){return p.layout==='cover'?coverSlots(bk):p.layout==='back'?(p.showPhoto?1:0):LAYOUTS[p.layout].n}
 function shownIds(bk){const out=[];allP(bk).forEach(p=>(p.photos||[]).slice(0,slotCount(bk,p)).forEach(x=>x&&out.push(x.id)));return out}
@@ -1127,6 +1120,31 @@ function spreadDiv(s,half,W,H,q){const src=s&&photoSrc(s.id,q);if(!src)return`<d
   const B=BL&&BLS?BL:0;const m=photoMeta.get(s.id),z=s.z||1;let size=`${2*W}px auto`,bx=0,by=0;if(m&&m.w){const k=Math.max((2*W+2*B)/m.w,(H+2*B)/m.h)*z,iw=m.w*k,ih=m.h*k;size=`${r1(iw)}px ${r1(ih)}px`;bx=(2*W+2*B-iw)*(s.fx??.5)-B;by=(H+2*B-ih)*(s.fy??.5)-B}
   return`<div class="ph" data-span="2" ${half?'data-half="1"':'data-slot="0"'} style="left:${-B}px;top:${-B}px;width:${W+2*B}px;height:${H+2*B}px;background-image:url('${src}');background-size:${size};background-position:${r1(bx-half*W+B)}px ${r1(by+B)}px"></div>`}
 function capOf(p){return Object.assign({x:.06,y:.95,ax:0,ay:100,style:'shadow'},p.cap||{})}
+/* Text boxes belong to the page (page.boxes), on any photo layout: {id,title,sub,x,y,ax,ay,w?,h?,style,align?,ts}. Old books: the full-photo caption becomes the first box. */
+function migrateBoxes(bk){(bk.pages||[]).forEach(p=>{if(!p.boxes)p.boxes=[];const tx=p.text||{};
+  if(p.layout==='full'&&(tx.title||tx.sub)&&!p.boxes.length){p.boxes.push({id:uid(),title:tx.title||'',sub:tx.sub||'',...capOf(p),...(p.align?{align:p.align}:{}),ts:p.ts||1});tx.title='';tx.sub='';delete p.cap;delete p.align;p.ts=1}})}
+function boxById(p,id){return id&&p?(p.boxes||[]).find(b=>b.id===id)||null:null}
+function selBox(){return S.book&&S.capSelId?boxById(curPage(),S.capSelId):null}
+/* Rough page-px rectangles of a box and of the photos (tilted photos use their frame) */
+function photoRects(p,W,H){return p.layout==='cover'||p.layout==='back'?[]:slotRects(p.layout,W,H).map(r=>[r[0],r[1],r[2],r[3]])}
+function ovl(a,b){const w=Math.min(a[0]+a[2],b[0]+b[2])-Math.max(a[0],b[0]),h=Math.min(a[1]+a[3],b[1]+b[3])-Math.max(a[1],b[1]);return w>0&&h>0?w*h:0}
+function boxRectEst(b,W,H){const w=(b.w||.4)*W,h=(b.h||.1)*H;return[b.x*W-b.ax/100*w,b.y*H-b.ay/100*h,w,h]}
+/* New box: the first empty white spot of the page (scanning top to bottom), else the spot that covers the least; on a full photo, bottom left like before */
+function newBox(p,W,H){const id=uid();if(p.layout==='full'){const used=(p.boxes||[]).map(b=>boxRectEst(b,W,H));
+    const spots=[[.06,.95,0,100],[.06,.06,0,0],[.94,.95,100,100],[.94,.06,100,0],[.5,.5,50,50]];const sp=spots.find(([x,y,ax,ay])=>!used.some(u=>ovl(u,boxRectEst({x,y,ax,ay,w:.5,h:.12},W,H))))||spots[0];
+    return{id,title:'',sub:'',x:sp[0],y:sp[1],ax:sp[2],ay:sp[3],style:'shadow',ts:1}}
+  const ph=photoRects(p,W,H),bx=(p.boxes||[]).map(b=>boxRectEst(b,W,H)),m=Math.min(W,H)*.04;let best=null;
+  /* keep clear of the ▦ and T buttons in the top corners */
+  ph.push([0,0,W*.18,H*.11],[W*.82,0,W*.18,H*.11]);
+  for(const fw of [.42,.32,.24]){const cw=fw*W,ch=H*.1;for(let y=m;y+ch<=H-m;y+=H*.02)for(let x=m;x+cw<=W-m;x+=W*.02){const r=[x,y,cw,ch];const sc=ph.reduce((a,q)=>a+ovl(r,q),0)+bx.reduce((a,q)=>a+2*ovl(r,q),0);
+      if(!best||sc<best.sc-1)best={sc,r,fw};if(sc===0)break}if(best&&best.sc===0)break}
+  const r=best.r,free=best.sc===0;return{id,title:'',sub:'',x:r[0]/W,y:r[1]/H,ax:0,ay:0,w:Math.round(best.fw*1000)/1000,style:free?'none':'shadow',ts:free?.7:1}}
+/* All text boxes of a page, drawn above the photos (stickers stay on top) */
+function boxesHTML(page,q,W,H,fk,bg){return(page.boxes||[]).map(b=>{const ced=CAPEDIT===b&&q==='med';if(!(b.title||b.sub||ced))return'';
+  const f0=Math.min(W,H)*.06,cw=b.w?b.w*W:W*.84;const K=txLimit(b,b.ts||1,fk,f0,k=>blockH(b.title,fk,f0*k,cw,1.05)+(b.sub?4+blockH(b.sub,'montserrat',f0*k*.32,cw,1.25,.22):0)<=H*.9);const fs=f0*K;
+  const st=b.style||'shadow';const col=page.ink||(st==='box'?'#1E1E1E':st==='none'&&page.layout!=='full'?readable(bg,'#1E1E1E'):'#FFFFFF');const al=b.align||(b.ax===0?'left':b.ax===100?'right':'center');const AC=alignCSS(al);const pad=Math.min(W,H)*.025;
+  const back=st==='band'?`background:rgba(0,0,0,.48);padding:${r1(pad)}px ${r1(pad*1.3)}px;border-radius:${r1(pad*.4)}px;`:st==='box'?`background:rgba(255,255,255,.88);padding:${r1(pad)}px ${r1(pad*1.3)}px;border-radius:${r1(pad*.4)}px;`:st==='shadow'?'text-shadow:0 2px 12px rgba(0,0,0,.5);':'';
+  return`<div class="fl cap${ced?' editing':''}" data-bid="${b.id}" style="left:${r1(b.x*W)}px;top:${r1(b.y*H)}px;${b.w?`width:${r1(b.w*W)}px;`:`width:max-content;max-width:${r1(W*.84)}px;`}${b.h?`min-height:${r1(b.h*H)}px;justify-content:center;`:''}transform:translate(-${b.ax}%,-${b.ay}%);align-items:${AC.items};${AC.text}gap:4px;${back}">${b.title||ced?CF('title',dispCSS(fk,fs,col,'line-height:1.05;'),b.title,ced&&'Type a caption'):''}${b.sub||ced?CF('sub',spaced(fs*.32,col),b.sub,ced&&'Place or date'):''}</div>`}).join('')}
 const CAP_SPOTS=[[.06,.06,0,0],[.5,.06,50,0],[.94,.06,100,0],[.06,.5,0,50],[.5,.5,50,50],[.94,.5,100,50],[.06,.95,0,100],[.5,.95,50,100],[.94,.95,100,100]];
 function fillEmpty(bk,p,n){const used=new Set(shownIds(bk));const free=(bk.photoIds||[]).filter(id=>!used.has(id));for(let j=0;j<n;j++){if(!p.photos[j]&&free.length){while(p.photos.length<=j)p.photos.push(null);p.photos[j]=slot(free.shift())}}}
 function bookName(bk){return(bk.name||bk.title||'Untitled').trim()||'Untitled'}
@@ -1317,13 +1335,18 @@ function renderStage(){
   if(S.stickerSel){const el=st.querySelector(`.pgbox.sel .st[data-sid="${S.stickerSel}"]`);el&&el.classList.add('on')}
   drawCapHandles();enableCapEdit();drawPhotoBtns();
 }
-/* On each photo of the open pages: ✦ Enhance and ✕ Take off (top-right, kept clear of the layout button), the zoom bar along the bottom (shows on hover or touch), and T on full-photo pages */
+/* On each photo of the open pages: ✦ Enhance and ✕ Take off (top-right, kept clear of the layout and T buttons), the zoom bar along the bottom (shows on hover or touch). T on each page adds a text box */
 let zHot=null,zHide=null;
 const zKey=el=>{const bx=el.closest('.pgbox');return(bx.dataset.part==='back'?'b':bx.dataset.pi)+':'+(el.dataset.half?'h':el.dataset.slot)};
 function setZHot(k){if(zHot===k)return;zHot=k;$$('#stage .zbar').forEach(b=>b.classList.toggle('on',b.dataset.zk===k))}
 function zFlash(k){setZHot(k);clearTimeout(zHide);zHide=setTimeout(()=>{const a=document.activeElement;if(!(a&&a.closest&&a.closest('.zbar')))setZHot(null)},4000)}
 function drawPhotoBtns(){const st=$('#stage');if(!st)return;const sr=st.getBoundingClientRect(),lays=$$('.lay-btn',st).map(b=>b.getBoundingClientRect()),S2=30,sc=+st.dataset.scale||1;
-  const obst=$$('.cap-ov,.cap-al',st).map(o=>o.getBoundingClientRect()),tAt={};
+  /* T: add a text box to the page. It sits next to the page's ▦ layout button (inside it, towards the page middle); photo buttons keep clear of it */
+  $$('.pgbox[data-pi]',st).forEach(bx=>{const pi=+bx.dataset.pi,pg=S.book.pages[pi];if(!pi||!pg||pg.quote)return;const r=bx.getBoundingClientRect(),lb=bx.querySelector('.lay-btn');let x,y;
+    if(lb){const L=lb.getBoundingClientRect();y=L.top+(L.height-S2)/2;x=lb.classList.contains('l')?L.right+6:L.left-6-S2}else{x=r.right-12-S2;y=r.top+12}
+    const t=document.createElement('button');t.className='enh-btn tx-btn';t.dataset.capadd=pi;t.title='Add a text box';t.setAttribute('aria-label',t.title);t.textContent='T';
+    Object.assign(t.style,{left:(x-sr.left)+'px',top:(y-sr.top)+'px'});st.appendChild(t);lays.push({left:x,right:x+S2,top:y,bottom:y+S2})});
+  const obst=$$('.cap-ov,.cap-al',st).map(o=>o.getBoundingClientRect());
   $$('.pgbox[data-pi] .ph[data-slot]:not(.empty), .pgbox[data-pi] .ph[data-half], .pgbox[data-part="back"] .ph[data-slot]:not(.empty)',st).forEach(el=>{const s=slotOfEl(el);if(!s)return;const r=el.getBoundingClientRect();
     drawZoomBar(st,sr,el,s,r,sc,obst);
     if(el.dataset.half||r.width<S2+16||r.height<S2+16)return;
@@ -1333,13 +1356,7 @@ function drawPhotoBtns(){const st=$('#stage');if(!st)return;const sr=st.getBound
     Object.assign(b.style,{left:(x-sr.left)+'px',top:(y-sr.top)+'px'});st.appendChild(b);
     const bx=el.closest('.pgbox'),u=document.createElement('button');u.className='enh-btn un-btn';u.dataset.unat=(bx.dataset.part==='back'?'back':bx.dataset.pi)+':'+el.dataset.slot;u.title='Take this photo off the page';u.setAttribute('aria-label',u.title);u.textContent='✕';
     Object.assign(u.style,{left:(x-S2-6-sr.left)+'px',top:(y-sr.top)+'px'});st.appendChild(u);
-    if(bx.dataset.pi)tAt[bx.dataset.pi]={x:x-2*(S2+6),y,min:r.left+6}});
-  /* T: add or open the caption text box on a full-photo page */
-  $$('.pgbox[data-pi]',st).forEach(bx=>{const pi=bx.dataset.pi,pg=S.book.pages[+pi];if(!pg||pg.layout!=='full')return;const r=bx.getBoundingClientRect();
-    let a=tAt[pi];if(!a){let x=r.right-12-S2,y=r.top+12;for(const L of lays)if(x-S2-6<L.right&&x+S2>L.left&&y<L.bottom&&y+S2>L.top)x=L.left-6-S2;a={x,y,min:r.left+6}}
-    if(a.x<a.min)return;const has=!!((pg.text||{}).title||(pg.text||{}).sub);
-    const t=document.createElement('button');t.className='enh-btn tx-btn';t.dataset.capadd=pi;t.title=has?'Edit the text box':'Add a text box';t.setAttribute('aria-label',t.title);t.textContent='T';
-    Object.assign(t.style,{left:(a.x-sr.left)+'px',top:(a.y-sr.top)+'px'});st.appendChild(t)})}
+    })}
 /* Zoom bar along the bottom of a photo (turns with a tilted photo; moves above the caption box when they would overlap) */
 function drawZoomBar(st,sr,el,s,r,sc,obst){const fr=el.closest('.fr'),ang=fr?parseFloat((fr.style.transform.match(/rotate\(([-\d.]+)deg\)/)||[])[1])||0:0;
   const w=el.offsetWidth*sc,h=el.offsetHeight*sc,BH=34;if(w<90||h<60)return;
@@ -1354,25 +1371,30 @@ function drawZoomBar(st,sr,el,s,r,sc,obst){const fr=el.closest('.fr'),ang=fr?par
   b.addEventListener('click',e=>{e.stopPropagation();const z2=e.target.closest('[data-zs]');if(!z2)return;s.z=Math.round(clamp((s.z||1)+(+z2.dataset.zs)*.25,1,3)*100)/100;changed()});
   b.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse')zFlash(k)});
   st.appendChild(b)}
-function drawCapHandles(){const st=$('#stage');if(!st)return;const c=st.querySelector('.pgbox.sel .pg .cap');if(!c)return;const sr=st.getBoundingClientRect(),r=c.getBoundingClientRect(),g=5;
+function drawCapHandles(){const st=$('#stage');if(!st)return;const p=curPage(),b=selBox();if(!b)return;const c=st.querySelector(`.pgbox.sel .pg .cap[data-bid="${b.id}"]`);if(!c)return;const sr=st.getBoundingClientRect(),r=c.getBoundingClientRect(),g=5;
   const o=document.createElement('div');o.className='cap-ov';Object.assign(o.style,{left:(r.left-sr.left-g)+'px',top:(r.top-sr.top-g)+'px',width:(r.width+2*g)+'px',height:(r.height+2*g)+'px'});
   o.innerHTML=['tl','tr','bl','br'].map(h=>`<i class="c" data-h="${h}" title="Drag to resize the box"></i>`).join('')+['l','r'].map(h=>`<i class="s" data-h="${h}" title="Drag to change the width"></i>`).join('')+['t','b'].map(h=>`<i class="v" data-h="${h}" title="Drag to change the height"></i>`).join('');st.appendChild(o);
-  const p=curPage(),cp=capOf(p),cur=p.align||(cp.ax===0?'left':cp.ax===100?'right':'center');const a=document.createElement('div');a.className='cap-al';a.setAttribute('role','toolbar');a.setAttribute('aria-label','Text box');
-  a.innerHTML='<div class="cap-row"><div class="align-seg" role="group" aria-label="Text alignment">'+[['left','Left'],['center','Centre'],['right','Right'],['justify','Justify']].map(([k,l])=>`<button data-align="${k}" aria-pressed="${cur===k}" aria-label="${l}" title="${l}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">${ALIGN_ICONS[k]}</svg></button>`).join('')+'</div>'+(()=>{const info=TXM.get(p);if(!info)return'';const mx=Math.floor(mmOf(info,info.max)*10)/10;return`<label class="cap-mm" title="Text height (capital letters), up to ${mx} mm"><input type="number" inputmode="decimal" step="0.5" min="${Math.min(3,mx)}" max="${mx}" value="${mmOf(info,info.k)}" data-tsmm aria-label="Text height in mm"><span>mm</span></label>`})()+`<button class="fit" data-capfit ${cp.w||cp.h?'':'disabled'} title="Make the box fit the text">Fit to text</button></div>`
-    +`<div class="cap-row" role="group" aria-label="Behind the text"><span class="lbl2">Behind</span>${[['shadow','Soft shadow'],['band','Dark band'],['box','Light box'],['none','Nothing']].map(([k,l])=>`<button class="chip-s" data-capstyle="${k}" aria-pressed="${cp.style===k}">${l}</button>`).join('')}</div>`;
+  const cp=b,cur=b.align||(cp.ax===0?'left':cp.ax===100?'right':'center');const a=document.createElement('div');a.className='cap-al';a.setAttribute('role','toolbar');a.setAttribute('aria-label','Text box');
+  a.innerHTML='<div class="cap-row"><div class="align-seg" role="group" aria-label="Text alignment">'+[['left','Left'],['center','Centre'],['right','Right'],['justify','Justify']].map(([k,l])=>`<button data-align="${k}" aria-pressed="${cur===k}" aria-label="${l}" title="${l}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">${ALIGN_ICONS[k]}</svg></button>`).join('')+'</div>'+(()=>{const info=TXM.get(b);if(!info)return'';const mx=Math.floor(mmOf(info,info.max)*10)/10;return`<label class="cap-mm" title="Text height (capital letters), up to ${mx} mm"><input type="number" inputmode="decimal" step="0.5" min="${Math.min(3,mx)}" max="${mx}" value="${mmOf(info,info.k)}" data-tsmm aria-label="Text height in mm"><span>mm</span></label>`})()+`<button class="fit" data-capfit ${cp.w||cp.h?'':'disabled'} title="Make the box fit the text">Fit to text</button><button class="fit cap-del" data-capdel title="Delete this text box" aria-label="Delete this text box">✕</button></div>`
+    +`<div class="cap-row" role="group" aria-label="Behind the text"><span class="lbl2">Behind</span>${[['shadow','Soft shadow'],['band','Dark band'],['box','Light box'],['none','Nothing']].map(([k,l])=>`<button class="chip-s" data-capstyle="${k}" aria-pressed="${(cp.style||'shadow')===k}">${l}</button>`).join('')}</div>`;
   a.addEventListener('pointerdown',e=>{if(e.target.closest('button'))e.preventDefault()});st.appendChild(a);
   const ow=a.offsetWidth,oh=a.offsetHeight,cx=r.left-sr.left+r.width/2;let y=r.bottom-sr.top+g+8;if(y+oh>st.clientHeight-30)y=r.top-sr.top-g-8-oh;
   Object.assign(a.style,{left:clamp(cx-ow/2,4,st.clientWidth-ow-4)+'px',top:Math.max(4,y)+'px'})}
 /* Text box on a full-photo page, like Word: T or a second click on the box types straight on the page */
 let CAPEDIT=null,capField='title',capWant=false;
-function startCapEdit(pi,f){const pg=S.book.pages[pi];if(!pg||pg.layout!=='full')return;if(S.sel!==pi)select(pi);pg.text=pg.text||{};S.capSel=pg;CAPEDIT=pg;capField=f||'title';capWant=true;renderStage()}
+function startCapEdit(pi,f,bid){const pg=S.book.pages[pi];if(!pg)return;if(S.sel!==pi)select(pi);const b=boxById(pg,bid);if(!b)return;S.capSelId=b.id;CAPEDIT=b;capField=f||'title';capWant=true;renderStage()}
+function addBox(pi){const pg=S.book.pages[pi];if(!pg)return;if(CAPEDIT)endCapEdit();if(S.sel!==pi)select(pi);if(!pg.boxes)pg.boxes=[];const{W,H}=SIZES[S.book.size];const b=newBox(pg,W,H);pg.boxes.push(b);startCapEdit(pi,'title',b.id)}
+function delBox(id){const p=curPage();if(!p||!p.boxes)return;const n=p.boxes.length;p.boxes=p.boxes.filter(b=>b.id!==id);if(p.boxes.length===n)return;if(CAPEDIT&&CAPEDIT.id===id){CAPEDIT=null;capWant=false}S.capSelId=null;changed({insp:true});commitNow();toastAction('Text box deleted.','Undo',undo)}
+function hideCapUI(){$$('#stage .cap-ov,#stage .cap-al').forEach(o=>o.remove())}
 function capFocusEnd(el){el.focus({preventScroll:true});const r=document.createRange();r.selectNodeContents(el);r.collapse(false);const sl=getSelection();sl.removeAllRanges();sl.addRange(r);capField=el.dataset.capf}
-function enableCapEdit(){if(!CAPEDIT)return;if(CAPEDIT!==curPage()||CAPEDIT.layout!=='full'){quitCapEdit();return}
+function enableCapEdit(){if(!CAPEDIT)return;if(!(curPage().boxes||[]).includes(CAPEDIT)){quitCapEdit();return}
   const c=$('#stage .pgbox.sel .pg .cap.editing');if(!c)return;
   $$('[data-capf]',c).forEach(el=>{el.contentEditable='plaintext-only';if(el.contentEditable!=='plaintext-only')el.contentEditable='true';el.spellcheck=true;el.setAttribute('role','textbox');el.setAttribute('aria-label',el.dataset.capf==='title'?'Caption':'Place or date')});
   if(capWant){const el=c.querySelector(`[data-capf="${capField}"]`)||c.querySelector('[data-capf]');if(el)capFocusEnd(el)}}
-function quitCapEdit(){const pg=CAPEDIT;CAPEDIT=null;capWant=false;if(!pg)return;const tx=pg.text||{};['title','sub'].forEach(k=>{if(typeof tx[k]==='string')tx[k]=tx[k].trim()});touch()}
-function endCapEdit(){if(!CAPEDIT)return;const i=S.book.pages.indexOf(CAPEDIT);quitCapEdit();if(document.activeElement&&document.activeElement.isContentEditable)document.activeElement.blur();changed();if(i>=0)refreshThumb(i)}
+function quitCapEdit(){const b=CAPEDIT;CAPEDIT=null;capWant=false;if(!b)return;['title','sub'].forEach(k=>{if(typeof b[k]==='string')b[k]=b[k].trim()});
+  /* A box with both lines empty is removed */
+  if(!b.title&&!b.sub){S.book.pages.forEach(p=>{if(p.boxes&&p.boxes.includes(b))p.boxes=p.boxes.filter(x=>x!==b)});if(S.capSelId===b.id)S.capSelId=null}touch()}
+function endCapEdit(){if(!CAPEDIT)return;const i=S.sel;quitCapEdit();if(document.activeElement&&document.activeElement.isContentEditable)document.activeElement.blur();changed();if(i>=0)refreshThumb(i)}
 /* While typing, move the handles and the bar with the growing box (the page itself is not redrawn) */
 function redrawCapBox(){const st=$('#stage');if(!st)return;$$('.cap-ov,.cap-al,.zbar',st).forEach(o=>o.remove());drawCapHandles();
   const sr=st.getBoundingClientRect(),sc=+st.dataset.scale||1,obst=$$('.cap-ov,.cap-al',st).map(o=>o.getBoundingClientRect());
@@ -1381,7 +1403,7 @@ document.addEventListener('focusin',e=>{if(!CAPEDIT)return;const t=e.target;if(t
 document.addEventListener('focusout',()=>{if(!CAPEDIT)return;setTimeout(()=>{if(!CAPEDIT)return;const a=document.activeElement;if(a&&a.closest&&(a.closest('.stage .cap.editing')||a.closest('.cap-al')))return;endCapEdit()},0)});
 document.addEventListener('paste',e=>{const t=e.target;if(!(t.isContentEditable&&t.dataset&&t.dataset.capf))return;e.preventDefault();const v=(e.clipboardData||window.clipboardData).getData('text/plain').replace(/\s*\n\s*/g,' ');document.execCommand('insertText',false,v)});
 /* A press anywhere but the text box or its bar unselects the box (the next click on it selects again) */
-document.addEventListener('pointerdown',e=>{if(S.capSel&&!(e.target.closest&&e.target.closest('.stage .cap,.cap-al,.cap-ov')))S.capSel=null},true);
+document.addEventListener('pointerdown',e=>{if(S.capSelId&&!(e.target.closest&&e.target.closest('.stage .cap,.cap-al,.cap-ov'))){S.capSelId=null;if(!CAPEDIT)hideCapUI()}},true);
 /* Zoom bar: shows on the photo under the mouse; with touch, for a few seconds after touching the photo */
 document.addEventListener('pointermove',e=>{if(S.view!=='edit'||e.pointerType==='touch'||!e.target.closest)return;const t=e.target,b=t.closest('#stage .zbar');if(b)return setZHot(b.dataset.zk);
   if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('.zbar')&&e.buttons)return;const ph=t.closest(PH_SEL);setZHot(ph?zKey(ph):null)});
@@ -1394,7 +1416,7 @@ function renderStrip(){
 function refreshThumb(i){const sp=$('#strip');if(!sp)return;const el=sp.querySelector(`[data-sel="${i}"]`);if(!el)return renderStrip();const bk=S.book,{H}=SIZES[bk.size];el.firstElementChild.outerHTML=boxHTML(bk,bk.pages[i],74/H,'thumb')}
 let thumbTimer=null;
 function changed(opts={}){touch();renderStage();if(S.sel===0&&S.coverPart==='spine'&&!opts.insp){const pv=$('#sp-prev');if(pv){pv.innerHTML=spinePrev(S.book);pv.scrollLeft=(pv.scrollWidth-pv.clientWidth)/2}}clearTimeout(thumbTimer);const i=S.sel;thumbTimer=setTimeout(()=>refreshThumb(i),250);if(opts.insp)renderInsp();if(opts.strip)renderStrip()}
-function select(i){if(CAPEDIT)quitCapEdit();S.capSel=null;S.sel=clamp(i,0,S.book.pages.length-1);S.spread=spreadOf(S.sel);S.stickerSel=null;renderStage();renderStrip();renderInsp()}
+function select(i){if(CAPEDIT)quitCapEdit();S.capSelId=null;S.sel=clamp(i,0,S.book.pages.length-1);S.spread=spreadOf(S.sel);S.stickerSel=null;renderStage();renderStrip();renderInsp()}
 
 const LAY_ICON={
   full:'<rect x="2" y="2" width="30" height="36" rx="2"/>',
@@ -1470,7 +1492,7 @@ function renderInsp(){
     if(['title','chapter'].includes(p.layout))h+=`<div class="grp"><span class="lbl">Illustration</span><div class="motifs">${['',...MOTIF_KEYS].map(k=>`<button class="mo-btn" data-pmotif="${k}" aria-pressed="${(p.motif||'')===k}" aria-label="${k?MOTIFS[k].label:'Same as cover'}" title="${k?MOTIFS[k].label:'Same as cover'}" style="${k&&k!=='none'?`background-image:${motifURL(k,P.accent)}`:''}">${k===''?'Cover':k==='none'?'None':''}</button>`).join('')}</div></div>`;
   }
   // Style
-  const hasText=isCover||isBack||['title','chapter','route','note','photoText','full'].includes(p.layout);
+  const hasText=isCover||isBack||['title','chapter','route','note','photoText','full'].includes(p.layout)||!!(p.boxes||[]).length;
   if(!isCover)h+=`<div class="grp"><span class="lbl">Style</span>`;
   if(hasText&&!isCover){
     if(!isCover&&!isBack)h+=`<label class="note" for="i-font" style="display:block;margin:0 0 4px;font-weight:600;color:var(--ink)">Heading font</label><select class="inp" id="i-font" data-pfont><option value="">Same as cover</option>${Object.entries(FONTS).map(([k,f])=>`<option value="${k}" ${p.font===k?'selected':''}>${f.label}</option>`).join('')}</select>`;
@@ -2020,7 +2042,7 @@ document.addEventListener('click',async e=>{
   if(capJustMoved){capJustMoved=false;return}
   const hph=t.closest('.stage .pgbox[data-pi] .ph[data-half]');if(hph&&!t.closest('.st')){const i=+hph.closest('.pgbox').dataset.pi-1;if(i!==S.sel)select(i);return openPicker(0)}
   const phc=t.closest('.stage .pgbox[data-pi] .ph[data-slot]');if(phc&&!t.closest('.st')){const i=+phc.closest('.pgbox').dataset.pi;if(i!==S.sel||(i===0&&S.coverPart!=='front')){S.coverPart='front';select(i)}return openPicker(+phc.dataset.slot)}
-  const pb=t.closest('.stage .pgbox[data-pi]');if(pb&&!t.closest('.st')){const i=+pb.dataset.pi;if(t.closest('.cap.editing'))return;if(i!==S.sel){select(i);if(t.closest('.cap'))S.capSel=S.book.pages[i];return}S.capSel=null;if(S.stickerSel){S.stickerSel=null;renderStage();renderInsp()}return}
+  const pb=t.closest('.stage .pgbox[data-pi]');if(pb&&!t.closest('.st')){const i=+pb.dataset.pi;if(t.closest('.cap.editing'))return;if(i!==S.sel){select(i);const cb=t.closest('.cap');if(cb){S.capSelId=cb.dataset.bid;redrawCapBox()}return}S.capSelId=null;if(S.stickerSel){S.stickerSel=null;renderStage();renderInsp()}return}
   const dp=t.closest('[data-delpage]');if(dp){const i=+dp.dataset.delpage;bk.pages.splice(i,1);touch();commitNow();select(Math.min(S.sel===i?i:S.sel>i?S.sel-1:S.sel,bk.pages.length-1));toastAction(`Page ${i} deleted.`,'Undo',undo);return}
   if(stripJustDragged){stripJustDragged=false;return}
   const th=t.closest('[data-sel]');if(th){S.coverPart='front';return select(+th.dataset.sel)}
@@ -2032,14 +2054,14 @@ document.addEventListener('click',async e=>{
   const fo=t.closest('[data-font]');if(fo){bk.cover.font=fo.dataset.font;touch();renderStage();renderStrip();renderInsp();return}
   const pk=t.closest('[data-pick]');if(pk)return openPicker(+pk.dataset.pick);
   const en=t.closest('[data-enh]');if(en)return openEnhance(en.dataset.enh);
-  const tad=t.closest('[data-capadd]');if(tad)return startCapEdit(+tad.dataset.capadd,'title');
+  const tad=t.closest('[data-capadd]');if(tad)return addBox(+tad.dataset.capadd);
+  if(t.closest('[data-capdel]')){const b=selBox();if(b)delBox(b.id);return}
   const un=t.closest('[data-unat]');if(un){const[a,j]=un.dataset.unat.split(':'),pp=a==='back'?bk.back:bk.pages[+a];if(pp&&pp.photos){pp.photos[+j]=null;changed({insp:true,strip:true});commitNow();toastAction('Photo taken off the page. It is still in “Choose a photo”.','Undo',undo)}return}
   const fx=t.closest('[data-focus]');if(fx&&fxDragged){fxDragged=false;return}if(fx){const r=fx.getBoundingClientRect();const s=p.photos[+fx.dataset.focus];if(s){s.fx=r1(clamp((e.clientX-r.left)/r.width,0,1)*100)/100;s.fy=r1(clamp((e.clientY-r.top)/r.height,0,1)*100)/100;const dot=fx.querySelector('.dot');dot.style.left=s.fx*100+'%';dot.style.top=s.fy*100+'%';changed()}return}
   const ptab=t.closest('[data-part-tab]');if(ptab){S.coverPart=ptab.dataset.partTab;S.stickerSel=null;renderStage();renderInsp();return}
-  const alb=t.closest('[data-align]');if(alb){p.align=alb.dataset.align;return changed({insp:true})}
-  const csp=t.closest('[data-capspot]');if(csp){const c=CAP_SPOTS[+csp.dataset.capspot];p.cap={...capOf(p),x:c[0],y:c[1],ax:c[2],ay:c[3]};return changed({insp:true})}
-  if(t.closest('[data-capfit]')){const c={...capOf(p)};delete c.w;delete c.h;p.cap=c;return changed({insp:true})}
-  const cst2=t.closest('[data-capstyle]');if(cst2){p.cap={...capOf(p),style:cst2.dataset.capstyle};return changed({insp:true})}
+  const alb=t.closest('[data-align]');if(alb){const b=alb.closest('.cap-al')&&selBox();if(b)b.align=alb.dataset.align;else p.align=alb.dataset.align;return changed({insp:true})}
+    if(t.closest('[data-capfit]')){const b=selBox();if(b){delete b.w;delete b.h}return changed({insp:true})}
+  const cst2=t.closest('[data-capstyle]');if(cst2){const b=selBox();if(b)b.style=cst2.dataset.capstyle;return changed({insp:true})}
   const sps=t.closest('[data-spsep]');if(sps){bk.spine.sep=sps.dataset.spsep;return changed({insp:true})}
   const spf=t.closest('[data-spfont]');if(spf){bk.spine.font=spf.dataset.spfont;return changed({insp:true})}
   const col=t.closest('[data-color]');if(col){const k=col.dataset.color;if(k==='spbg'){bk.spine.bg=col.dataset.v}else if(k==='spink'){bk.spine.ink=col.dataset.v}else p[k]=col.dataset.v;return changed({insp:true})}
@@ -2052,7 +2074,7 @@ document.addEventListener('input',e=>{
   if(S.view!=='edit'||!S.book)return;const bk=S.book,p=curPage();
   if('bname'in t.dataset){const v=t.value.trim();bk.name=v||undefined;const te=$('.top .title-edit');if(te)te.firstChild.nodeValue=bookName(bk)+' ';return touch()}
   if(t.dataset.bk){bk[t.dataset.bk]=t.value;if(t.dataset.bk==='title'&&!bk.name)$('.top .title-edit').firstChild.nodeValue=(t.value||'Untitled')+' ';return changed()}
-  if(t.dataset.capf&&CAPEDIT&&t.closest('.stage .cap.editing')){let v=t.textContent.replace(/\s*\n\s*/g,' ');if(!v.trim()){v='';if(t.innerHTML)t.innerHTML=''}CAPEDIT.text[t.dataset.capf]=v;touch();redrawCapBox();clearTimeout(thumbTimer);const i=S.sel;thumbTimer=setTimeout(()=>refreshThumb(i),250);return}
+  if(t.dataset.capf&&CAPEDIT&&t.closest('.stage .cap.editing')){let v=t.textContent.replace(/\s*\n\s*/g,' ');if(!v.trim()){v='';if(t.innerHTML)t.innerHTML=''}CAPEDIT[t.dataset.capf]=v;touch();redrawCapBox();clearTimeout(thumbTimer);const i=S.sel;thumbTimer=setTimeout(()=>refreshThumb(i),250);return}
   if(t.dataset.text){p.text[t.dataset.text]=t.value;return changed()}
   if(t.dataset.stop){p.stops[+t.dataset.stop][t.dataset.f]=t.value;return changed()}
   if('tsmm'in t.dataset){if(t.closest('.cap-al'))return;const v=parseFloat(t.value),info=TXM.get(p);if(info&&v>0){p.ts=v/mmOf(info,1);return changed()}return}
@@ -2066,7 +2088,7 @@ document.addEventListener('input',e=>{
   if(ss&&'srot'in t.dataset){ss.r=+t.value;return changed()}
 });
 document.addEventListener('change',e=>{const t=e.target;
-  if(S.view==='edit'&&('tsmm'in t.dataset||'spmm'in t.dataset)){const sp='spmm'in t.dataset,bk=S.book,o=sp?bk.spine:curPage(),key=sp?'size':'ts',info=sp?SPM.get(bk):TXM.get(o);if(!info)return;
+  if(S.view==='edit'&&('tsmm'in t.dataset||'spmm'in t.dataset)){const sp='spmm'in t.dataset,bk=S.book,o=sp?bk.spine:(t.closest('.cap-al')&&selBox())||curPage(),key=sp?'size':'ts',info=sp?SPM.get(bk):TXM.get(o);if(!info)return;
     const lo=(sp?1.5:3)/mmOf(info,1),v=parseFloat(t.value),want=v>0?v/mmOf(info,1):(o[key]||1),k=clamp(want,Math.min(lo,info.max),info.max);
     if(want>info.max+1e-6)toast(`Largest that fits here: ${Math.floor(mmOf(info,info.max)*10)/10} mm.`);else if(want<lo-1e-6)toast(`Smallest: ${sp?1.5:3} mm.`);
     o[key]=k;return changed({insp:true})}
@@ -2125,7 +2147,7 @@ document.addEventListener('contextmenu',e=>{if(sdrag)e.preventDefault()});
 /* Caption box handles: corners resize box and text together, sides change only the width */
 let hdrag=null,hRaf=0;
 document.addEventListener('pointerdown',e=>{const hd=e.target.closest('.cap-ov [data-h]');if(!hd||S.view!=='edit')return;e.preventDefault();e.stopPropagation();
-  const c=$('#stage .pgbox.sel .pg .cap');if(!c)return;const pg=S.book.pages[S.sel],{W,H}=SIZES[S.book.size],cp=capOf(pg),sc=+($('#stage').dataset.scale)||1;
+  const bx=selBox();if(!bx)return;const c=$(`#stage .pgbox.sel .pg .cap[data-bid="${bx.id}"]`);if(!c)return;const pg=bx,{W,H}=SIZES[S.book.size],cp={...bx},sc=+($('#stage').dataset.scale)||1;
   const w0=c.offsetWidth,h0=c.offsetHeight,ax=cp.ax/100,ay=cp.ay/100;
   hdrag={h:hd.dataset.h,pg,cp,w0,h0,L0:cp.x*W-ax*w0,T0:cp.y*H-ay*h0,sc,x:e.clientX,y:e.clientY,W,H,ax,ay,moved:false}},true);
 document.addEventListener('pointermove',e=>{if(!hdrag)return;const d=hdrag,dx=(e.clientX-d.x)/d.sc,dy=(e.clientY-d.y)/d.sc;if(!d.moved&&Math.hypot(e.clientX-d.x,e.clientY-d.y)<3)return;d.moved=true;
@@ -2134,14 +2156,14 @@ document.addEventListener('pointermove',e=>{if(!hdrag)return;const d=hdrag,dx=(e
   if(h.includes('r'))Rr=clamp(Rr+dx,L0+W*.12,W*.98);if(h.includes('l'))L=clamp(L0+dx,W*.02,Rr-W*.12);
   if(h.includes('b'))B=clamp(B+dy,T0+H*.04,H*.98);
   if(h.includes('t'))T=clamp(T0+dy,H*.02,B-H*.04);
-  const nw=Rr-L,nh=B-T,c={...d.cp};if(h!=='t'&&h!=='b'){c.w=nw/W;c.x=(L+ax*nw)/W}if(h!=='l'&&h!=='r'){c.h=nh/H;c.y=(T+ay*nh)/H}d.pg.cap=c;
+  const nw=Rr-L,nh=B-T,c={...d.cp};if(h!=='t'&&h!=='b'){c.w=nw/W;c.x=(L+ax*nw)/W}if(h!=='l'&&h!=='r'){c.h=nh/H;c.y=(T+ay*nh)/H}Object.assign(d.pg,c);
   if(!hRaf)hRaf=requestAnimationFrame(()=>{hRaf=0;renderStage()})});
 document.addEventListener('pointerup',()=>{if(!hdrag)return;const d=hdrag;hdrag=null;if(!d.moved)return;capJustMoved=true;setTimeout(()=>capJustMoved=false,400);touch();renderStage();refreshThumb(S.sel);renderInsp()});
 
-/* Caption drag: move the caption anywhere on a full-photo page */
+/* Text box drag: move a box anywhere on its page */
 let cdrag=null,capJustMoved=false;
 document.addEventListener('pointerdown',e=>{if(S.view!=='edit')return;const c=e.target.closest('.stage .pgbox.sel .pg .cap');if(!c)return;if(c.classList.contains('editing')){e.stopPropagation();return}e.preventDefault();e.stopPropagation();
-  const box=c.closest('.pgbox');const pg=S.book.pages[+box.dataset.pi];if(!pg)return;const cp=capOf(pg);
+  const box=c.closest('.pgbox');const pg=boxById(S.book.pages[+box.dataset.pi],c.dataset.bid);if(!pg)return;const cp={...pg};
   cdrag={f:e.target.closest('[data-capf]')?.dataset.capf||'title',pi:+box.dataset.pi,c,pg,cp,side:null,w0:c.offsetWidth,box:box.getBoundingClientRect(),x:e.clientX,y:e.clientY,moved:false};c.setPointerCapture(e.pointerId)},true);
 document.addEventListener('pointermove',e=>{if(!cdrag)return;const d=cdrag,{W,H}=SIZES[S.book.size];const dx=(e.clientX-d.x)/d.box.width,dy=(e.clientY-d.y)/d.box.height;if(!d.moved&&Math.hypot(e.clientX-d.x,e.clientY-d.y)<4)return;d.moved=true;
   if(d.side){const ax=d.cp.ax/100,w0=d.w0,L0=d.cp.x*W-ax*w0,R0=L0+w0,dpx=dx*W;let L=L0,Rr=R0;if(d.side==='r')Rr=clamp(R0+dpx,L0+W*.15,W*.98);else L=clamp(L0+dpx,W*.02,R0-W*.15);
@@ -2149,8 +2171,8 @@ document.addEventListener('pointermove',e=>{if(!cdrag)return;const d=cdrag,{W,H}
   const cw=d.c.offsetWidth,ch=d.c.offsetHeight,ax=d.cp.ax/100,ay=d.cp.ay/100,m=.02;
   const lim=(v,size,full,a)=>{const lo=(m*full+a*size)/full,hi=((1-m)*full-(1-a)*size)/full;return lo>hi?(lo+hi)/2:clamp(v,lo,hi)};
   const nx=lim(d.cp.x+dx,cw,W,ax),ny=lim(d.cp.y+dy,ch,H,ay);d.c.style.left=nx*W+'px';d.c.style.top=ny*H+'px';d.nx=nx;d.ny=ny});
-document.addEventListener('pointerup',()=>{if(!cdrag)return;const d=cdrag;cdrag=null;if(!d.moved){capJustMoved=true;setTimeout(()=>capJustMoved=false,400);if(S.capSel===d.pg)startCapEdit(d.pi,d.f);else S.capSel=d.pg;return}capJustMoved=true;setTimeout(()=>capJustMoved=false,400);
-  d.pg.cap={...d.cp,x:d.nx,y:d.ny,...(d.nw?{w:Math.round(d.nw*1000)/1000}:{})};touch();renderStage();refreshThumb(S.sel);renderInsp()});
+document.addEventListener('pointerup',()=>{if(!cdrag)return;const d=cdrag;cdrag=null;if(!d.moved){capJustMoved=true;setTimeout(()=>capJustMoved=false,400);if(S.capSelId===d.pg.id)startCapEdit(d.pi,d.f,d.pg.id);else{S.capSelId=d.pg.id;redrawCapBox()}return}capJustMoved=true;setTimeout(()=>capJustMoved=false,400);
+  Object.assign(d.pg,{x:d.nx,y:d.ny,...(d.nw?{w:Math.round(d.nw*1000)/1000}:{})});S.capSelId=d.pg.id;touch();renderStage();refreshThumb(S.sel);renderInsp()});
 
 /* Sticker drag */
 let drag=null;
@@ -2170,6 +2192,7 @@ document.addEventListener('keydown',e=>{
   if(S.view!=='edit'||$('.modal,.pv'))return;if(e.target.matches('input,textarea,select'))return;
   if(e.key==='ArrowRight'){e.preventDefault();select(S.sel+1)}
   if(e.key==='ArrowLeft'){e.preventDefault();select(S.sel-1)}
+  if((e.key==='Delete'||e.key==='Backspace')&&!S.stickerSel&&selBox()){e.preventDefault();return delBox(S.capSelId)}
   if((e.key==='Delete'||e.key==='Backspace')&&S.stickerSel){const p=curPage();p.stickers=p.stickers.filter(s=>s.id!==S.stickerSel);S.stickerSel=null;changed({insp:true})}
 });
 /* Pinch a photo with two fingers to zoom it inside its frame (same as the Zoom slider, 1x to 3x) */

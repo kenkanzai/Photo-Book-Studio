@@ -191,7 +191,12 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.45}
 .slot .fx.none{cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted);font-weight:600;font-size:13px;border:1.5px dashed var(--muted);background:transparent}
 .slot .acts{display:flex;gap:4px}
 .slot .acts button.on{background:var(--accent-soft);border-color:var(--accent)}
-.zrows{display:flex;flex-direction:column;gap:8px}.zrow{display:flex;align-items:center;gap:10px}.zrow input{flex:1;min-width:0}.zth{flex:0 0 36px;height:36px;border-radius:6px;background:var(--surface-2) center/cover no-repeat}
+.zbar{position:absolute;z-index:6;height:34px;display:flex;align-items:center;gap:6px;padding:0 10px;box-sizing:border-box;background:linear-gradient(180deg,rgba(0,0,0,.12),rgba(0,0,0,.62));color:#fff;opacity:0;pointer-events:none;transition:opacity .15s;touch-action:none}
+  .zbar.on,.zbar:focus-within{opacity:1;pointer-events:auto}
+  .zbar button{flex:0 0 auto;width:24px;height:30px;border:0;background:none;color:#fff;font-size:19px;font-weight:700;line-height:1;padding:0}
+  .zbar input{flex:1;min-width:0;margin:0;accent-color:var(--accent);cursor:pointer}
+  .zbar span{flex:0 0 auto;min-width:34px;font-size:12px;font-weight:700;text-align:right}
+  .zbar.sm span{display:none}.zbar.xs button{display:none}
 .en-ims{display:grid;grid-template-columns:1fr 1fr;gap:10px}.en-ims figure{margin:0;min-width:0}.en-ims figcaption{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:4px}
 .en-ims canvas{width:100%;height:auto;display:block;border-radius:8px;background:var(--surface-2)}.en-wrap{position:relative}
 .en-busy{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;background:rgba(10,12,11,.55);color:#fff;font-weight:600;font-size:14px;border-radius:8px}
@@ -266,7 +271,17 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.45}
 .lay-btn svg{width:16px;height:16px}
 .enh-btn{position:absolute;z-index:7;width:30px;height:30px;border-radius:50%;border:0;background:rgba(255,255,255,.94);color:#1D2120;box-shadow:0 1px 5px rgba(0,0,0,.28);font-size:15px;line-height:30px;padding:0;text-align:center}
 .enh-btn.on{background:var(--accent);color:#fff}.un-btn{font-size:13px}
-.cap-al{position:absolute;z-index:8;box-shadow:0 2px 8px rgba(0,0,0,.25);align-items:center}
+.cap-al{position:absolute;z-index:8;display:flex;flex-direction:column;gap:6px;padding:6px;border-radius:12px;background:var(--surface);box-shadow:0 2px 10px rgba(0,0,0,.28);box-sizing:border-box;max-width:calc(100% - 8px)}
+.cap-row{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.cap-al .fit,.cap-al .chip-s{min-height:30px;padding:0 12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:600;white-space:nowrap}
+.cap-al .fit{border-radius:8px}.cap-al .fit:disabled{opacity:.4}
+.cap-al .chip-s{border-radius:99px}.cap-al .chip-s[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.cap-al .lbl2{font-size:12px;font-weight:600;color:var(--muted);margin:0 4px}
+.stage .pgbox.sel .pg .cap.editing{cursor:text}
+.stage .cap [contenteditable]{outline:none;cursor:text;min-width:2ch;-webkit-user-select:text;user-select:text}
+.stage .cap [data-capf]:empty::before{content:attr(data-ph);opacity:.6}
+@media (max-width:520px){.cap-al .fit,.cap-al .chip-s{padding:0 8px;font-size:12px}.cap-al .align-seg button{width:32px}.cap-al .lbl2{display:none}.cap-al .cap-mm input{width:54px}}
+.enh-btn.tx-btn{font-family:Georgia,'Times New Roman',serif;font-weight:700;font-size:16px}
 .cap-mm{display:flex;align-items:center;gap:4px;padding:0 6px 0 8px;margin-left:2px;border-left:1px solid var(--line,rgba(0,0,0,.12));font-size:13px;font-weight:600;color:var(--muted)}
 .cap-mm input{width:64px;height:30px;border:1px solid rgba(0,0,0,.18);border-radius:7px;padding:0 6px;font:inherit;font-weight:600;color:var(--ink);background:#fff}
 .stage .pg .ph{cursor:pointer;touch-action:none}
@@ -932,6 +947,8 @@ const TXM=new WeakMap();
 function txLimit(page,ts,fk,base,ok){let mx=6;if(!ok(mx)){let lo=.05,hi=mx;for(let i=0;i<22;i++){const m=(lo+hi)/2;if(ok(m))lo=m;else hi=m}mx=lo}const k=Math.min(ts,mx);TXM.set(page,{fk,base,max:mx,k});return k}
 function mmOf(info,k){return Math.round(k*info.base*capR(info.fk)/PXMM*10)/10}
 const T=(css,txt)=>`<div class="tx" style="${css}">${esc(txt)}</div>`;
+/* Caption line of a full-photo page: data-capf marks which line it is, data-ph is the hint shown while typing on the page */
+const CF=(f,css,txt,ph)=>`<div class="tx" data-capf="${f}"${ph?` data-ph="${ph}"`:''} style="${css}">${esc(txt||'')}</div>`;
 /* Print: BL = bleed in page px, BLS = cut edges that get bleed (+ page W,H). PREC collects each photo's printed size for the sharpness check. */
 let BL=0,BLS=null,PREC=null,PREC_AT='';
 function bleedBox(x,y,w,h){if(!BL||!BLS)return[x,y,w,h];const e=.5,l=BLS.l&&x<=e?BL:0,t=BLS.t&&y<=e?BL:0,r=BLS.r&&x+w>=BLS.W-e?BL:0,b=BLS.b&&y+h>=BLS.H-e?BL:0;return[x-l,y-t,w+l+r,h+t+b]}
@@ -1050,10 +1067,11 @@ function pageHTML(book,page,q){
       x=slotRects(page.layout,W,H).map((rc,i)=>phDiv(ph[i],rc[0],rc[1],rc[2],rc[3],q,'',i)).join('');
       let K=ts;const f0=Math.min(W,H)*.06;
       if(page.layout==='full'){const cp=capOf(page),cw=cp.w?cp.w*W:W*.84;K=txLimit(page,ts,fk,f0,k=>blockH(tx.title,fk,f0*k,cw,1.05)+(tx.sub?4+blockH(tx.sub,'montserrat',f0*k*.32,cw,1.25,.22):0)<=H*.9)}
-      if(page.layout==='full'&&(tx.title||tx.sub)){const fs=f0*K;const cp=capOf(page);
+      const ced=CAPEDIT===page&&q==='med';
+      if(page.layout==='full'&&(tx.title||tx.sub||ced)){const fs=f0*K;const cp=capOf(page);
         const col=page.ink||(cp.style==='box'?'#1E1E1E':'#FFFFFF');const al=page.align||(cp.ax===0?'left':cp.ax===100?'right':'center');const AC=alignCSS(al);const pad=Math.min(W,H)*.025;
         const back=cp.style==='band'?`background:rgba(0,0,0,.48);padding:${r1(pad)}px ${r1(pad*1.3)}px;border-radius:${r1(pad*.4)}px;`:cp.style==='box'?`background:rgba(255,255,255,.88);padding:${r1(pad)}px ${r1(pad*1.3)}px;border-radius:${r1(pad*.4)}px;`:cp.style==='shadow'?'text-shadow:0 2px 12px rgba(0,0,0,.5);':'';
-        x+=`<div class="fl cap" style="left:${r1(cp.x*W)}px;top:${r1(cp.y*H)}px;${cp.w?`width:${r1(cp.w*W)}px;`:`width:max-content;max-width:${r1(W*.84)}px;`}${cp.h?`min-height:${r1(cp.h*H)}px;justify-content:center;`:''}transform:translate(-${cp.ax}%,-${cp.ay}%);align-items:${AC.items};${AC.text}gap:4px;${back}">${tx.title?T(dispCSS(fk,fs,col,'line-height:1.05;'),tx.title):''}${tx.sub?T(spaced(fs*.32,col),tx.sub):''}</div>`}
+        x+=`<div class="fl cap${ced?' editing':''}" style="left:${r1(cp.x*W)}px;top:${r1(cp.y*H)}px;${cp.w?`width:${r1(cp.w*W)}px;`:`width:max-content;max-width:${r1(W*.84)}px;`}${cp.h?`min-height:${r1(cp.h*H)}px;justify-content:center;`:''}transform:translate(-${cp.ax}%,-${cp.ay}%);align-items:${AC.items};${AC.text}gap:4px;${back}">${tx.title||ced?CF('title',dispCSS(fk,fs,col,'line-height:1.05;'),tx.title,ced&&'Type a caption'):''}${tx.sub||ced?CF('sub',spaced(fs*.32,col),tx.sub,ced&&'Place or date'):''}</div>`}
     }
   }
   return`<div class="pg" style="width:${W}px;height:${H}px;background:${bg}">${x}${stickersHTML(page,W,H)}</div>`;
@@ -1297,24 +1315,77 @@ function renderStage(){
   st.innerHTML=`${boxes}<button class="icon-btn nav prev" data-act="prev" aria-label="Previous" ${canPrev?'':'disabled'}>‹</button><button class="icon-btn nav next" data-act="next" aria-label="Next" ${canNext?'':'disabled'}>›</button><div class="pos">${label}</div>`;
   if(!(idxs.length===1&&idxs[0]===0))st.dataset.scale=sc;
   if(S.stickerSel){const el=st.querySelector(`.pgbox.sel .st[data-sid="${S.stickerSel}"]`);el&&el.classList.add('on')}
-  drawCapHandles();drawPhotoBtns();
+  drawCapHandles();enableCapEdit();drawPhotoBtns();
 }
-/* Enhance button on each photo of the open pages (top-right corner, kept clear of the layout button) */
-function drawPhotoBtns(){const st=$('#stage');if(!st)return;const sr=st.getBoundingClientRect(),lays=$$('.lay-btn',st).map(b=>b.getBoundingClientRect()),S2=30;
-  $$('.pgbox[data-pi] .ph[data-slot]:not(.empty), .pgbox[data-part="back"] .ph[data-slot]:not(.empty)',st).forEach(el=>{const s=slotOfEl(el);if(!s)return;const r=el.getBoundingClientRect();if(r.width<S2+16||r.height<S2+16)return;
+/* On each photo of the open pages: ✦ Enhance and ✕ Take off (top-right, kept clear of the layout button), the zoom bar along the bottom (shows on hover or touch), and T on full-photo pages */
+let zHot=null,zHide=null;
+const zKey=el=>{const bx=el.closest('.pgbox');return(bx.dataset.part==='back'?'b':bx.dataset.pi)+':'+(el.dataset.half?'h':el.dataset.slot)};
+function setZHot(k){if(zHot===k)return;zHot=k;$$('#stage .zbar').forEach(b=>b.classList.toggle('on',b.dataset.zk===k))}
+function zFlash(k){setZHot(k);clearTimeout(zHide);zHide=setTimeout(()=>{const a=document.activeElement;if(!(a&&a.closest&&a.closest('.zbar')))setZHot(null)},4000)}
+function drawPhotoBtns(){const st=$('#stage');if(!st)return;const sr=st.getBoundingClientRect(),lays=$$('.lay-btn',st).map(b=>b.getBoundingClientRect()),S2=30,sc=+st.dataset.scale||1;
+  const obst=$$('.cap-ov,.cap-al',st).map(o=>o.getBoundingClientRect()),tAt={};
+  $$('.pgbox[data-pi] .ph[data-slot]:not(.empty), .pgbox[data-pi] .ph[data-half], .pgbox[data-part="back"] .ph[data-slot]:not(.empty)',st).forEach(el=>{const s=slotOfEl(el);if(!s)return;const r=el.getBoundingClientRect();
+    drawZoomBar(st,sr,el,s,r,sc,obst);
+    if(el.dataset.half||r.width<S2+16||r.height<S2+16)return;
     let x=r.right-12-S2,y=r.top+12;for(const L of lays)if(x-S2-6<L.right&&x+S2>L.left&&y<L.bottom&&y+S2>L.top)x=L.left-6-S2;if(x-S2-6<r.left+6)return;
     const m=photoMeta.get(s.id),on=!!(m&&m.enh);const b=document.createElement('button');b.className='enh-btn'+(on?' on':'');b.dataset.enh=s.id;
     b.title=on?'Enhanced ('+enhLabel(m.enh)+'). Tap to change':'Enhance photo';b.setAttribute('aria-label',b.title);b.textContent='✦';
     Object.assign(b.style,{left:(x-sr.left)+'px',top:(y-sr.top)+'px'});st.appendChild(b);
     const bx=el.closest('.pgbox'),u=document.createElement('button');u.className='enh-btn un-btn';u.dataset.unat=(bx.dataset.part==='back'?'back':bx.dataset.pi)+':'+el.dataset.slot;u.title='Take this photo off the page';u.setAttribute('aria-label',u.title);u.textContent='✕';
-    Object.assign(u.style,{left:(x-S2-6-sr.left)+'px',top:(y-sr.top)+'px'});st.appendChild(u)})}
+    Object.assign(u.style,{left:(x-S2-6-sr.left)+'px',top:(y-sr.top)+'px'});st.appendChild(u);
+    if(bx.dataset.pi)tAt[bx.dataset.pi]={x:x-2*(S2+6),y,min:r.left+6}});
+  /* T: add or open the caption text box on a full-photo page */
+  $$('.pgbox[data-pi]',st).forEach(bx=>{const pi=bx.dataset.pi,pg=S.book.pages[+pi];if(!pg||pg.layout!=='full')return;const r=bx.getBoundingClientRect();
+    let a=tAt[pi];if(!a){let x=r.right-12-S2,y=r.top+12;for(const L of lays)if(x-S2-6<L.right&&x+S2>L.left&&y<L.bottom&&y+S2>L.top)x=L.left-6-S2;a={x,y,min:r.left+6}}
+    if(a.x<a.min)return;const has=!!((pg.text||{}).title||(pg.text||{}).sub);
+    const t=document.createElement('button');t.className='enh-btn tx-btn';t.dataset.capadd=pi;t.title=has?'Edit the text box':'Add a text box';t.setAttribute('aria-label',t.title);t.textContent='T';
+    Object.assign(t.style,{left:(a.x-sr.left)+'px',top:(a.y-sr.top)+'px'});st.appendChild(t)})}
+/* Zoom bar along the bottom of a photo (turns with a tilted photo; moves above the caption box when they would overlap) */
+function drawZoomBar(st,sr,el,s,r,sc,obst){const fr=el.closest('.fr'),ang=fr?parseFloat((fr.style.transform.match(/rotate\(([-\d.]+)deg\)/)||[])[1])||0:0;
+  const w=el.offsetWidth*sc,h=el.offsetHeight*sc,BH=34;if(w<90||h<60)return;
+  const cx=r.left+r.width/2-sr.left,cy=r.top+r.height/2-sr.top;let d=h/2-BH/2;
+  if(!ang)for(const o of obst){const top=cy+d-BH/2+sr.top,L=cx-w/2+sr.left;if(o.left<L+w&&o.right>L&&o.top<top+BH&&o.bottom>top){const nd=o.top-sr.top-6-BH/2-cy;if(nd-BH/2>-h/2+48)d=Math.min(d,nd)}}
+  const k=zKey(el),z=s.z||1,b=document.createElement('div');b.className='zbar'+(w<150?' sm':'')+(w<120?' xs':'')+(k===zHot?' on':'');b.dataset.zk=k;
+  b.innerHTML=`<button type="button" data-zs="-1" aria-label="Zoom out" title="Zoom out">−</button><input type="range" min="1" max="3" step="0.05" value="${z}" aria-label="Zoom photo"><button type="button" data-zs="1" aria-label="Zoom in" title="Zoom in">+</button><span>${z.toFixed(1)}×</span>`;
+  Object.assign(b.style,{width:w+'px',left:(cx-w/2)+'px',top:(cy-BH/2)+'px',transform:`rotate(${ang}deg) translateY(${d}px)`});
+  const inp=b.querySelector('input'),lab=b.querySelector('span');
+  inp.addEventListener('input',()=>{s.z=+inp.value;lab.textContent=s.z.toFixed(1)+'×';liveZoom(el,s)});
+  inp.addEventListener('change',()=>{s.z=+inp.value;changed()});
+  b.addEventListener('click',e=>{e.stopPropagation();const z2=e.target.closest('[data-zs]');if(!z2)return;s.z=Math.round(clamp((s.z||1)+(+z2.dataset.zs)*.25,1,3)*100)/100;changed()});
+  b.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse')zFlash(k)});
+  st.appendChild(b)}
 function drawCapHandles(){const st=$('#stage');if(!st)return;const c=st.querySelector('.pgbox.sel .pg .cap');if(!c)return;const sr=st.getBoundingClientRect(),r=c.getBoundingClientRect(),g=5;
   const o=document.createElement('div');o.className='cap-ov';Object.assign(o.style,{left:(r.left-sr.left-g)+'px',top:(r.top-sr.top-g)+'px',width:(r.width+2*g)+'px',height:(r.height+2*g)+'px'});
   o.innerHTML=['tl','tr','bl','br'].map(h=>`<i class="c" data-h="${h}" title="Drag to resize the box"></i>`).join('')+['l','r'].map(h=>`<i class="s" data-h="${h}" title="Drag to change the width"></i>`).join('')+['t','b'].map(h=>`<i class="v" data-h="${h}" title="Drag to change the height"></i>`).join('');st.appendChild(o);
-  const p=curPage(),cp=capOf(p),cur=p.align||(cp.ax===0?'left':cp.ax===100?'right':'center');const a=document.createElement('div');a.className='align-seg cap-al';a.setAttribute('role','group');a.setAttribute('aria-label','Text alignment');
-  a.innerHTML=[['left','Left'],['center','Centre'],['right','Right'],['justify','Justify']].map(([k,l])=>`<button data-align="${k}" aria-pressed="${cur===k}" aria-label="${l}" title="${l}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">${ALIGN_ICONS[k]}</svg></button>`).join('')+(()=>{const info=TXM.get(p);if(!info)return'';const mx=Math.floor(mmOf(info,info.max)*10)/10;return`<label class="cap-mm" title="Text height (capital letters), up to ${mx} mm"><input type="number" inputmode="decimal" step="0.5" min="${Math.min(3,mx)}" max="${mx}" value="${mmOf(info,info.k)}" data-tsmm aria-label="Text height in mm"><span>mm</span></label>`})();st.appendChild(a);
+  const p=curPage(),cp=capOf(p),cur=p.align||(cp.ax===0?'left':cp.ax===100?'right':'center');const a=document.createElement('div');a.className='cap-al';a.setAttribute('role','toolbar');a.setAttribute('aria-label','Text box');
+  a.innerHTML='<div class="cap-row"><div class="align-seg" role="group" aria-label="Text alignment">'+[['left','Left'],['center','Centre'],['right','Right'],['justify','Justify']].map(([k,l])=>`<button data-align="${k}" aria-pressed="${cur===k}" aria-label="${l}" title="${l}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">${ALIGN_ICONS[k]}</svg></button>`).join('')+'</div>'+(()=>{const info=TXM.get(p);if(!info)return'';const mx=Math.floor(mmOf(info,info.max)*10)/10;return`<label class="cap-mm" title="Text height (capital letters), up to ${mx} mm"><input type="number" inputmode="decimal" step="0.5" min="${Math.min(3,mx)}" max="${mx}" value="${mmOf(info,info.k)}" data-tsmm aria-label="Text height in mm"><span>mm</span></label>`})()+`<button class="fit" data-capfit ${cp.w||cp.h?'':'disabled'} title="Make the box fit the text">Fit to text</button></div>`
+    +`<div class="cap-row" role="group" aria-label="Behind the text"><span class="lbl2">Behind</span>${[['shadow','Soft shadow'],['band','Dark band'],['box','Light box'],['none','Nothing']].map(([k,l])=>`<button class="chip-s" data-capstyle="${k}" aria-pressed="${cp.style===k}">${l}</button>`).join('')}</div>`;
+  a.addEventListener('pointerdown',e=>{if(e.target.closest('button'))e.preventDefault()});st.appendChild(a);
   const ow=a.offsetWidth,oh=a.offsetHeight,cx=r.left-sr.left+r.width/2;let y=r.bottom-sr.top+g+8;if(y+oh>st.clientHeight-30)y=r.top-sr.top-g-8-oh;
   Object.assign(a.style,{left:clamp(cx-ow/2,4,st.clientWidth-ow-4)+'px',top:Math.max(4,y)+'px'})}
+/* Text box on a full-photo page, like Word: T or a second click on the box types straight on the page */
+let CAPEDIT=null,capField='title',capWant=false;
+function startCapEdit(pi,f){const pg=S.book.pages[pi];if(!pg||pg.layout!=='full')return;if(S.sel!==pi)select(pi);pg.text=pg.text||{};S.capSel=pg;CAPEDIT=pg;capField=f||'title';capWant=true;renderStage()}
+function capFocusEnd(el){el.focus({preventScroll:true});const r=document.createRange();r.selectNodeContents(el);r.collapse(false);const sl=getSelection();sl.removeAllRanges();sl.addRange(r);capField=el.dataset.capf}
+function enableCapEdit(){if(!CAPEDIT)return;if(CAPEDIT!==curPage()||CAPEDIT.layout!=='full'){quitCapEdit();return}
+  const c=$('#stage .pgbox.sel .pg .cap.editing');if(!c)return;
+  $$('[data-capf]',c).forEach(el=>{el.contentEditable='plaintext-only';if(el.contentEditable!=='plaintext-only')el.contentEditable='true';el.spellcheck=true;el.setAttribute('role','textbox');el.setAttribute('aria-label',el.dataset.capf==='title'?'Caption':'Place or date')});
+  if(capWant){const el=c.querySelector(`[data-capf="${capField}"]`)||c.querySelector('[data-capf]');if(el)capFocusEnd(el)}}
+function quitCapEdit(){const pg=CAPEDIT;CAPEDIT=null;capWant=false;if(!pg)return;const tx=pg.text||{};['title','sub'].forEach(k=>{if(typeof tx[k]==='string')tx[k]=tx[k].trim()});touch()}
+function endCapEdit(){if(!CAPEDIT)return;const i=S.book.pages.indexOf(CAPEDIT);quitCapEdit();if(document.activeElement&&document.activeElement.isContentEditable)document.activeElement.blur();changed();if(i>=0)refreshThumb(i)}
+/* While typing, move the handles and the bar with the growing box (the page itself is not redrawn) */
+function redrawCapBox(){const st=$('#stage');if(!st)return;$$('.cap-ov,.cap-al,.zbar',st).forEach(o=>o.remove());drawCapHandles();
+  const sr=st.getBoundingClientRect(),sc=+st.dataset.scale||1,obst=$$('.cap-ov,.cap-al',st).map(o=>o.getBoundingClientRect());
+  $$('.pgbox[data-pi] .ph[data-slot]:not(.empty), .pgbox[data-pi] .ph[data-half], .pgbox[data-part="back"] .ph[data-slot]:not(.empty)',st).forEach(el=>{const s=slotOfEl(el);if(s)drawZoomBar(st,sr,el,s,el.getBoundingClientRect(),sc,obst)})}
+document.addEventListener('focusin',e=>{if(!CAPEDIT)return;const t=e.target;if(t.dataset&&t.dataset.capf&&t.closest('.stage .cap.editing')){capWant=true;capField=t.dataset.capf}else if(t.closest&&t.closest('.cap-al'))capWant=false});
+document.addEventListener('focusout',()=>{if(!CAPEDIT)return;setTimeout(()=>{if(!CAPEDIT)return;const a=document.activeElement;if(a&&a.closest&&(a.closest('.stage .cap.editing')||a.closest('.cap-al')))return;endCapEdit()},0)});
+document.addEventListener('paste',e=>{const t=e.target;if(!(t.isContentEditable&&t.dataset&&t.dataset.capf))return;e.preventDefault();const v=(e.clipboardData||window.clipboardData).getData('text/plain').replace(/\s*\n\s*/g,' ');document.execCommand('insertText',false,v)});
+/* A press anywhere but the text box or its bar unselects the box (the next click on it selects again) */
+document.addEventListener('pointerdown',e=>{if(S.capSel&&!(e.target.closest&&e.target.closest('.stage .cap,.cap-al,.cap-ov')))S.capSel=null},true);
+/* Zoom bar: shows on the photo under the mouse; with touch, for a few seconds after touching the photo */
+document.addEventListener('pointermove',e=>{if(S.view!=='edit'||e.pointerType==='touch'||!e.target.closest)return;const t=e.target,b=t.closest('#stage .zbar');if(b)return setZHot(b.dataset.zk);
+  if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('.zbar')&&e.buttons)return;const ph=t.closest(PH_SEL);setZHot(ph?zKey(ph):null)});
+document.addEventListener('pointerdown',e=>{if(S.view!=='edit'||e.pointerType==='mouse'||!e.target.closest)return;const ph=e.target.closest(PH_SEL);if(ph)zFlash(zKey(ph))},true);
 function renderStrip(){
   const sp=$('#strip');if(!sp)return;const bk=S.book,{W,H}=SIZES[bk.size];const sc=74/H;
   sp.innerHTML=bk.pages.map((p,i)=>`<div class="thumb" role="button" tabindex="0" data-sel="${i}" aria-current="${i===S.sel}" aria-label="${i?'Page '+i+'. Drag to move.':'Cover'}">${boxHTML(bk,p,sc,'thumb')}<span>${i?i:'Cover'}</span>${i&&!p.quote?`<button class="thumb-x" data-delpage="${i}" aria-label="Delete page ${i}">×</button>`:''}</div>`).join('')+`<button class="thumb-add" data-act="addpage">+ Page</button>`;
@@ -1323,7 +1394,7 @@ function renderStrip(){
 function refreshThumb(i){const sp=$('#strip');if(!sp)return;const el=sp.querySelector(`[data-sel="${i}"]`);if(!el)return renderStrip();const bk=S.book,{H}=SIZES[bk.size];el.firstElementChild.outerHTML=boxHTML(bk,bk.pages[i],74/H,'thumb')}
 let thumbTimer=null;
 function changed(opts={}){touch();renderStage();if(S.sel===0&&S.coverPart==='spine'&&!opts.insp){const pv=$('#sp-prev');if(pv){pv.innerHTML=spinePrev(S.book);pv.scrollLeft=(pv.scrollWidth-pv.clientWidth)/2}}clearTimeout(thumbTimer);const i=S.sel;thumbTimer=setTimeout(()=>refreshThumb(i),250);if(opts.insp)renderInsp();if(opts.strip)renderStrip()}
-function select(i){S.sel=clamp(i,0,S.book.pages.length-1);S.spread=spreadOf(S.sel);S.stickerSel=null;renderStage();renderStrip();renderInsp()}
+function select(i){if(CAPEDIT)quitCapEdit();S.capSel=null;S.sel=clamp(i,0,S.book.pages.length-1);S.spread=spreadOf(S.sel);S.stickerSel=null;renderStage();renderStrip();renderInsp()}
 
 const LAY_ICON={
   full:'<rect x="2" y="2" width="30" height="36" rx="2"/>',
@@ -1367,8 +1438,8 @@ function renderInsp(){
       <span class="note" style="display:block;margin:10px 0 4px;font-weight:600;color:var(--ink)">Text colour</span>${colorRow('spink',sp.ink||'',['','#1E1E1E','#FFFFFF',P.accent,P.title])}</div>
       <div class="grp"><label class="lbl" for="sp-mm">Spine width (mm)</label><input class="inp" id="sp-mm" type="number" min="3" max="60" step="0.5" data-sp-mm value="${sp.mm||''}" placeholder="${spineMM({...bk,spine:{}})}" style="max-width:140px"><p class="note">Empty = ${spineMM({...bk,spine:{}})} mm, worked out from ${bk.pages.length-1} pages. Type the width your printer gives you for an exact fit.</p></div>`;
     el.innerHTML=h;const pv=$('#sp-prev');if(pv)pv.scrollLeft=(pv.scrollWidth-pv.clientWidth)/2;return}
-  const photosHTML=()=>{if(!nSlots)return'';const rows=Array.from({length:nSlots},(_,i)=>{const s=p.photos[i];const src=s&&photoSrc(s.id,'thumb');
-      return src?`<div class="zrow"><span class="zth" style="background-image:url('${src}')" aria-hidden="true"></span><input type="range" id="z-${i}" min="1" max="3" step="0.05" value="${s.z||1}" data-zoom="${i}" aria-label="Zoom photo ${i+1}" style="accent-color:var(--accent)"></div>`:''}).join('');
+  /* Photo zoom is on each photo (bar along its bottom); the panel keeps only Photo size for the photo cover */
+  const photosHTML=()=>{if(!nSlots)return'';const rows='';
     const phh=isCover&&bk.cover.style==='photo'?`<label class="note" for="i-phh" style="display:block;margin:12px 0 4px;font-weight:600;color:var(--ink)">Photo size</label><div class="range"><input type="range" id="i-phh" min="0.4" max="1" step="0.02" value="${bk.cover.phH||.74}" data-phh><span id="phh-v">${Math.round((bk.cover.phH||.74)*100)}%</span></div><p class="note">100% fills the whole cover.</p>`:'';
     if(!rows&&!phh)return'';return`<div class="grp"><span class="lbl">${isCover?'Cover photo':'Photo zoom'}</span>${rows?`${isCover?'<span class="note" style="display:block;margin:0 0 4px;font-weight:600;color:var(--ink)">Zoom</span>':''}<div class="zrows">${rows}</div>`:''}${phh}</div>`};
   if(isCover){
@@ -1393,9 +1464,8 @@ function renderInsp(){
     if(['note','photoText'].includes(p.layout))tf.push(['body',p.quote?'Caption or quote':'Text']);
     const alignDef=p.layout==='full'?(()=>{const cp=capOf(p);return cp.ax===0?'left':cp.ax===100?'right':'center'})():p.layout==='photoText'?'left':'center';
     const alignPanel=['note','photoText'].includes(p.layout)?alignRow(p.align||alignDef):'';
-    const capPanel=p.layout==='full'?(()=>{const cp=capOf(p);return`<div style="margin-top:12px"><button class="btn small" data-capfit ${cp.w||cp.h?'':'disabled'}>Fit to text</button></div>
-      <span class="note" style="display:block;margin:12px 0 6px;font-weight:600;color:var(--ink)">Behind the caption</span><div class="chips">${[['shadow','Soft shadow'],['band','Dark band'],['box','Light box'],['none','Nothing']].map(([k,l])=>`<button class="chip" data-capstyle="${k}" aria-pressed="${cp.style===k}">${l}</button>`).join('')}</div>`})():'';
-    if(tf.length)h+=`<div class="grp"><span class="lbl">Words</span>${tf.map(([k,l])=>`<label class="note" for="t-${k}" style="display:block;margin:8px 0 4px;font-weight:600;color:var(--ink)">${l}</label>${k==='body'?`<textarea class="inp" id="t-${k}" data-text="${k}">${esc(p.text[k])}</textarea>`:`<input class="inp" id="t-${k}" data-text="${k}" value="${esc(p.text[k])}"${p.layout==='full'&&k==='sub'?' placeholder="Athens · June 2026"':''}>`}`).join('')}${alignPanel}${capPanel}</div>`;
+    /* Full-photo page: the caption is typed in its text box on the page (T button); its bar holds alignment, height, Fit to text and Behind */
+    if(tf.length&&p.layout!=='full')h+=`<div class="grp"><span class="lbl">Words</span>${tf.map(([k,l])=>`<label class="note" for="t-${k}" style="display:block;margin:8px 0 4px;font-weight:600;color:var(--ink)">${l}</label>${k==='body'?`<textarea class="inp" id="t-${k}" data-text="${k}">${esc(p.text[k])}</textarea>`:`<input class="inp" id="t-${k}" data-text="${k}" value="${esc(p.text[k])}"${p.layout==='full'&&k==='sub'?' placeholder="Athens · June 2026"':''}>`}`).join('')}${alignPanel}</div>`;
     if(p.layout==='route')h+=`<div class="grp"><span class="lbl">Stops</span>${(p.stops||[]).map((s,i)=>`<div class="stop-row"><input class="inp" data-stop="${i}" data-f="name" value="${esc(s.name)}" placeholder="Place" aria-label="Place ${i+1}"><input class="inp" data-stop="${i}" data-f="date" value="${esc(s.date)}" placeholder="Dates" aria-label="Dates ${i+1}"><button data-rmstop="${i}" aria-label="Remove stop ${i+1}">×</button></div>`).join('')}<button class="btn small" data-act="addstop">+ Add stop</button></div>`;
     if(['title','chapter'].includes(p.layout))h+=`<div class="grp"><span class="lbl">Illustration</span><div class="motifs">${['',...MOTIF_KEYS].map(k=>`<button class="mo-btn" data-pmotif="${k}" aria-pressed="${(p.motif||'')===k}" aria-label="${k?MOTIFS[k].label:'Same as cover'}" title="${k?MOTIFS[k].label:'Same as cover'}" style="${k&&k!=='none'?`background-image:${motifURL(k,P.accent)}`:''}">${k===''?'Cover':k==='none'?'None':''}</button>`).join('')}</div></div>`;
   }
@@ -1950,7 +2020,7 @@ document.addEventListener('click',async e=>{
   if(capJustMoved){capJustMoved=false;return}
   const hph=t.closest('.stage .pgbox[data-pi] .ph[data-half]');if(hph&&!t.closest('.st')){const i=+hph.closest('.pgbox').dataset.pi-1;if(i!==S.sel)select(i);return openPicker(0)}
   const phc=t.closest('.stage .pgbox[data-pi] .ph[data-slot]');if(phc&&!t.closest('.st')){const i=+phc.closest('.pgbox').dataset.pi;if(i!==S.sel||(i===0&&S.coverPart!=='front')){S.coverPart='front';select(i)}return openPicker(+phc.dataset.slot)}
-  const pb=t.closest('.stage .pgbox[data-pi]');if(pb&&!t.closest('.st')){const i=+pb.dataset.pi;if(i!==S.sel)select(i);else if(S.stickerSel){S.stickerSel=null;renderStage();renderInsp()}return}
+  const pb=t.closest('.stage .pgbox[data-pi]');if(pb&&!t.closest('.st')){const i=+pb.dataset.pi;if(t.closest('.cap.editing'))return;if(i!==S.sel){select(i);if(t.closest('.cap'))S.capSel=S.book.pages[i];return}S.capSel=null;if(S.stickerSel){S.stickerSel=null;renderStage();renderInsp()}return}
   const dp=t.closest('[data-delpage]');if(dp){const i=+dp.dataset.delpage;bk.pages.splice(i,1);touch();commitNow();select(Math.min(S.sel===i?i:S.sel>i?S.sel-1:S.sel,bk.pages.length-1));toastAction(`Page ${i} deleted.`,'Undo',undo);return}
   if(stripJustDragged){stripJustDragged=false;return}
   const th=t.closest('[data-sel]');if(th){S.coverPart='front';return select(+th.dataset.sel)}
@@ -1962,6 +2032,7 @@ document.addEventListener('click',async e=>{
   const fo=t.closest('[data-font]');if(fo){bk.cover.font=fo.dataset.font;touch();renderStage();renderStrip();renderInsp();return}
   const pk=t.closest('[data-pick]');if(pk)return openPicker(+pk.dataset.pick);
   const en=t.closest('[data-enh]');if(en)return openEnhance(en.dataset.enh);
+  const tad=t.closest('[data-capadd]');if(tad)return startCapEdit(+tad.dataset.capadd,'title');
   const un=t.closest('[data-unat]');if(un){const[a,j]=un.dataset.unat.split(':'),pp=a==='back'?bk.back:bk.pages[+a];if(pp&&pp.photos){pp.photos[+j]=null;changed({insp:true,strip:true});commitNow();toastAction('Photo taken off the page. It is still in “Choose a photo”.','Undo',undo)}return}
   const fx=t.closest('[data-focus]');if(fx&&fxDragged){fxDragged=false;return}if(fx){const r=fx.getBoundingClientRect();const s=p.photos[+fx.dataset.focus];if(s){s.fx=r1(clamp((e.clientX-r.left)/r.width,0,1)*100)/100;s.fy=r1(clamp((e.clientY-r.top)/r.height,0,1)*100)/100;const dot=fx.querySelector('.dot');dot.style.left=s.fx*100+'%';dot.style.top=s.fy*100+'%';changed()}return}
   const ptab=t.closest('[data-part-tab]');if(ptab){S.coverPart=ptab.dataset.partTab;S.stickerSel=null;renderStage();renderInsp();return}
@@ -1981,6 +2052,7 @@ document.addEventListener('input',e=>{
   if(S.view!=='edit'||!S.book)return;const bk=S.book,p=curPage();
   if('bname'in t.dataset){const v=t.value.trim();bk.name=v||undefined;const te=$('.top .title-edit');if(te)te.firstChild.nodeValue=bookName(bk)+' ';return touch()}
   if(t.dataset.bk){bk[t.dataset.bk]=t.value;if(t.dataset.bk==='title'&&!bk.name)$('.top .title-edit').firstChild.nodeValue=(t.value||'Untitled')+' ';return changed()}
+  if(t.dataset.capf&&CAPEDIT&&t.closest('.stage .cap.editing')){let v=t.textContent.replace(/\s*\n\s*/g,' ');if(!v.trim()){v='';if(t.innerHTML)t.innerHTML=''}CAPEDIT.text[t.dataset.capf]=v;touch();redrawCapBox();clearTimeout(thumbTimer);const i=S.sel;thumbTimer=setTimeout(()=>refreshThumb(i),250);return}
   if(t.dataset.text){p.text[t.dataset.text]=t.value;return changed()}
   if(t.dataset.stop){p.stops[+t.dataset.stop][t.dataset.f]=t.value;return changed()}
   if('tsmm'in t.dataset){if(t.closest('.cap-al'))return;const v=parseFloat(t.value),info=TXM.get(p);if(info&&v>0){p.ts=v/mmOf(info,1);return changed()}return}
@@ -1988,7 +2060,6 @@ document.addEventListener('input',e=>{
   if(t.dataset.sppart){const k=t.dataset.sppart;bk.spine.parts=bk.spine.parts||{};bk.spine.parts[k]={...(bk.spine.parts[k]||{}),val:t.value};return changed()}
   if('spmm'in t.dataset){const v=parseFloat(t.value),info=SPM.get(bk);if(info&&v>0){bk.spine.size=v/mmOf(info,1);return changed()}return}
   if('spMm'in t.dataset){const v=parseFloat(t.value);bk.spine.mm=v>=3&&v<=60?v:null;return changed()}
-  if(t.dataset.zoom!==undefined){const s2=p.photos[+t.dataset.zoom];if(s2){s2.z=+t.value;return changed()}}
   if('phh'in t.dataset){bk.cover.phH=+t.value;$('#phh-v').textContent=Math.round(bk.cover.phH*100)+'%';return changed()}
   const ss=p.stickers.find(s=>s.id===S.stickerSel);
   if(ss&&'ssize'in t.dataset){ss.s=+t.value;return changed()}
@@ -2069,16 +2140,16 @@ document.addEventListener('pointerup',()=>{if(!hdrag)return;const d=hdrag;hdrag=
 
 /* Caption drag: move the caption anywhere on a full-photo page */
 let cdrag=null,capJustMoved=false;
-document.addEventListener('pointerdown',e=>{if(S.view!=='edit')return;const c=e.target.closest('.stage .pgbox.sel .pg .cap');if(!c)return;e.preventDefault();e.stopPropagation();
+document.addEventListener('pointerdown',e=>{if(S.view!=='edit')return;const c=e.target.closest('.stage .pgbox.sel .pg .cap');if(!c)return;if(c.classList.contains('editing')){e.stopPropagation();return}e.preventDefault();e.stopPropagation();
   const box=c.closest('.pgbox');const pg=S.book.pages[+box.dataset.pi];if(!pg)return;const cp=capOf(pg);
-  cdrag={c,pg,cp,side:null,w0:c.offsetWidth,box:box.getBoundingClientRect(),x:e.clientX,y:e.clientY,moved:false};c.setPointerCapture(e.pointerId)},true);
+  cdrag={f:e.target.closest('[data-capf]')?.dataset.capf||'title',pi:+box.dataset.pi,c,pg,cp,side:null,w0:c.offsetWidth,box:box.getBoundingClientRect(),x:e.clientX,y:e.clientY,moved:false};c.setPointerCapture(e.pointerId)},true);
 document.addEventListener('pointermove',e=>{if(!cdrag)return;const d=cdrag,{W,H}=SIZES[S.book.size];const dx=(e.clientX-d.x)/d.box.width,dy=(e.clientY-d.y)/d.box.height;if(!d.moved&&Math.hypot(e.clientX-d.x,e.clientY-d.y)<4)return;d.moved=true;
   if(d.side){const ax=d.cp.ax/100,w0=d.w0,L0=d.cp.x*W-ax*w0,R0=L0+w0,dpx=dx*W;let L=L0,Rr=R0;if(d.side==='r')Rr=clamp(R0+dpx,L0+W*.15,W*.98);else L=clamp(L0+dpx,W*.02,R0-W*.15);
     const w=Rr-L,nx=(L+ax*w)/W;d.c.style.width=w+'px';d.c.style.maxWidth='none';d.c.style.left=nx*W+'px';d.nx=nx;d.ny=d.cp.y;d.nw=w/W;return}
   const cw=d.c.offsetWidth,ch=d.c.offsetHeight,ax=d.cp.ax/100,ay=d.cp.ay/100,m=.02;
   const lim=(v,size,full,a)=>{const lo=(m*full+a*size)/full,hi=((1-m)*full-(1-a)*size)/full;return lo>hi?(lo+hi)/2:clamp(v,lo,hi)};
   const nx=lim(d.cp.x+dx,cw,W,ax),ny=lim(d.cp.y+dy,ch,H,ay);d.c.style.left=nx*W+'px';d.c.style.top=ny*H+'px';d.nx=nx;d.ny=ny});
-document.addEventListener('pointerup',()=>{if(!cdrag)return;const d=cdrag;cdrag=null;if(!d.moved)return;capJustMoved=true;setTimeout(()=>capJustMoved=false,400);
+document.addEventListener('pointerup',()=>{if(!cdrag)return;const d=cdrag;cdrag=null;if(!d.moved){capJustMoved=true;setTimeout(()=>capJustMoved=false,400);if(S.capSel===d.pg)startCapEdit(d.pi,d.f);else S.capSel=d.pg;return}capJustMoved=true;setTimeout(()=>capJustMoved=false,400);
   d.pg.cap={...d.cp,x:d.nx,y:d.ny,...(d.nw?{w:Math.round(d.nw*1000)/1000}:{})};touch();renderStage();refreshThumb(S.sel);renderInsp()});
 
 /* Sticker drag */
@@ -2093,6 +2164,7 @@ document.addEventListener('pointermove',e=>{if(!drag)return;const{s,st,box}=drag
 document.addEventListener('pointerup',()=>{if(!drag)return;const m=drag.moved;drag=null;if(m){touch();refreshThumb(S.sel)}});
 
 document.addEventListener('keydown',e=>{
+  if(e.target.isContentEditable){if(e.target.dataset.capf&&CAPEDIT){if(e.key==='Enter'){e.preventDefault();if(e.target.dataset.capf==='title'){const n=$('#stage .cap.editing [data-capf="sub"]');if(n){capFocusEnd(n);return}}endCapEdit()}else if(e.key==='Escape'){e.preventDefault();endCapEdit()}}return}
   if(S.view==='edit'&&!$('.modal,.pv')&&(e.ctrlKey||e.metaKey)&&!e.target.matches('input[type=text],input:not([type]),textarea')){const k=e.key.toLowerCase();if(k==='z'&&!e.shiftKey){e.preventDefault();return undo()}if(k==='y'||(k==='z'&&e.shiftKey)){e.preventDefault();return redo()}}
   if(S.view==='edit'&&e.key==='Enter'&&e.target.matches('.thumb')){return select(+e.target.dataset.sel)}
   if(S.view!=='edit'||$('.modal,.pv'))return;if(e.target.matches('input,textarea,select'))return;

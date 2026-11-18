@@ -291,6 +291,17 @@ body.sw-on .zbar{opacity:0!important;pointer-events:none!important}body.sw-on,bo
 .stage .cap [data-capf]:empty::before{content:attr(data-ph);opacity:.6}
 @media (max-width:520px){.cap-al .fit,.cap-al .chip-s{padding:0 8px;font-size:12px}.cap-al .align-seg button{width:32px}.cap-al .lbl2{display:none}.cap-al .cap-mm input{width:54px}}
 .enh-btn.tx-btn{font-family:Georgia,'Times New Roman',serif;font-weight:700;font-size:16px}
+.lk-btn svg{width:16px;height:16px;display:block;margin:auto}
+.lay-btn.lk-btn.on{background:var(--accent);color:var(--accent-ink)}
+.thumb-lk{display:inline-flex;vertical-align:-2px;margin-left:3px;color:var(--accent)}
+.thumb-lk svg{width:12px;height:12px}
+.lk-note{display:flex;align-items:center;gap:10px;margin:14px 0 4px;padding:10px 12px;border-radius:10px;background:var(--accent-soft);color:var(--ink);font-size:14px;line-height:1.35}
+.lk-note>svg{width:18px;height:18px;flex:none;color:var(--accent)}
+.lk-note span{flex:1}
+.lk-note .btn{flex:none}
+.lk-body{opacity:.45;pointer-events:none;user-select:none;-webkit-user-select:none}
+.used.lk{display:inline-flex;align-items:center;gap:3px}
+.used.lk svg{width:11px;height:11px}
 .cap-mm{display:flex;align-items:center;gap:4px;padding:0 6px 0 8px;margin-left:2px;border-left:1px solid var(--line,rgba(0,0,0,.12));font-size:13px;font-weight:600;color:var(--muted)}
 .cap-mm input{width:64px;height:30px;border:1px solid rgba(0,0,0,.18);border-radius:7px;padding:0 6px;font:inherit;font-weight:600;color:var(--ink);background:#fff}
 .stage .pg .ph{cursor:pointer;touch-action:none}
@@ -948,6 +959,26 @@ async function importFiles(files,bookId,onProgress){
 /* ========== Page model ========== */
 function newPage(layout,extra={}){return Object.assign({id:uid(),layout,photos:[],text:{title:'',sub:'',body:''},bg:'',ink:'',font:'',ts:1,motif:'',stops:[],stickers:[],boxes:[]},extra)}
 function slot(id){return id?{id,fx:.5,fy:.5}:null}
+/* Lock: a locked page (page.locked) or a locked book (book.locked) cannot be changed on the page, in the side panel or by undo. The cover lock (pages[0].locked) covers back, spine and front. A photo across 2 pages is locked when either page is. Toggling a lock is not an undo step */
+const LOCK_SVG='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="10" height="7.5" rx="1.5"/><path d="M5.2 7V5a2.8 2.8 0 0 1 5.6 0v2"/></svg>';
+const UNLOCK_SVG='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="10" height="7.5" rx="1.5"/><path d="M5.2 7V5a2.8 2.8 0 0 1 5.4-1"/></svg>';
+function pgLocked(i){const bk=S.book;if(!bk)return false;if(bk.locked)return true;const p=bk.pages[i];return!!(p&&p.locked)}
+function lockOwner(p){const bk=S.book;if(!bk||!p)return null;if(bk.locked)return'book';if(p===bk.back)return bk.pages[0].locked?0:null;const i=bk.pages.indexOf(p);if(i<0)return null;if(p.locked)return i;if(p.layout==='spread'&&pgLocked(i+1))return i+1;if(p.layout==='spreadR'&&i>0&&pgLocked(i-1))return i-1;return null}
+function pLocked(p){return lockOwner(p)!==null}
+function elPage(el){const bx=el&&el.closest&&el.closest('.pgbox');if(!bx||!S.book)return null;return bx.dataset.part&&bx.dataset.part!=='front'?S.book.pages[0]:S.book.pages[+bx.dataset.pi]}
+function elLocked(el){return pLocked(elPage(el))}
+function lockName(i){return i?'Page '+i:'The cover'}
+function lockToast(j){if(j==='book'||(S.book&&S.book.locked))return toastAction('This book is locked.','Unlock',()=>setBookLock(false),4000);if(j===null||j===undefined)return;toastAction(`${lockName(j)} is locked.`,'Unlock',()=>setLock(j,false),4000)}
+function lockToastP(p){lockToast(lockOwner(p))}
+function onLocked(id){const bk=S.book;return allP(bk).some(pp=>pLocked(pp)&&(pp.photos||[]).slice(0,slotCount(bk,pp)).some(x=>x&&x.id===id))}
+function lockSet(fn,msg){if(CAPEDIT)quitCapEdit();commitNow();S.capSelId=null;S.stickerSel=null;fn();touch();H.last=JSON.stringify(S.book);updUndo();renderStage();renderStrip();renderInsp();toast(msg,2200)}
+function setLock(i,on){const p=S.book.pages[i];if(!p)return;lockSet(()=>{if(on)p.locked=true;else delete p.locked},`${lockName(i)} ${on?'locked. Tap the lock to unlock it.':'unlocked.'}`)}
+function setBookLock(on){lockSet(()=>{if(on)S.book.locked=true;else delete S.book.locked},on?'Book locked. Nothing can be changed until you unlock it.':'Book unlocked.')}
+/* Undo/redo never changes a locked page or a locked book */
+function lockBlock(snap,verb){const bk=S.book;if(!bk)return'';if(bk.locked)return`This book is locked, so it can't be ${verb}. Unlock it first.`;let o;try{o=JSON.parse(snap)}catch(e){return''}
+  const cl=x=>{if(!x)return'';const c={...x};delete c.locked;return JSON.stringify(c)};
+  for(let i=0;i<bk.pages.length;i++){const p=bk.pages[i];if(!p.locked)continue;const q=p.id?o.pages.find(x=>x.id===p.id):o.pages[i];
+    if(cl(p)!==cl(q)||(i===0&&JSON.stringify([bk.cover,bk.back,bk.spine])!==JSON.stringify([o.cover,o.back,o.spine])))return`${lockName(i)} is locked, so this step can't be ${verb}. Unlock it first.`}return''}
 
 /* Text measuring: uses the real font when loaded, the fallback otherwise, so titles never break mid-word */
 const _mc=document.createElement('canvas').getContext('2d');const _mw=new Map();let fontVer=0;
@@ -1232,9 +1263,10 @@ const H={past:[],future:[],last:null,timer:null};
 function histReset(){H.past=[];H.future=[];H.last=S.book?JSON.stringify(S.book):null;clearTimeout(H.timer);updUndo()}
 function commitNow(){clearTimeout(H.timer);if(!S.book)return;const snap=JSON.stringify(S.book);if(snap!==H.last){if(H.last)H.past.push(H.last);if(H.past.length>60)H.past.shift();H.last=snap;H.future=[]}updUndo()}
 function updUndo(){const u=$('#b-undo'),r=$('#b-redo');if(u)u.disabled=!H.past.length&&!(S.book&&JSON.stringify(S.book)!==H.last);if(r)r.disabled=!H.future.length}
-function restoreSnap(snap){const keepSel=S.sel;S.book=JSON.parse(snap);H.last=snap;S.sel=clamp(keepSel,0,S.book.pages.length-1);S.spread=spreadOf(S.sel);S.stickerSel=null;clearTimeout(saveTimer);saveBook();renderEditor()}
-function undo(){commitNow();if(!H.past.length)return;H.future.push(H.last);restoreSnap(H.past.pop());toast('Undone.',1200)}
-function redo(){commitNow();if(!H.future.length)return;H.past.push(H.last);restoreSnap(H.future.pop());toast('Redone.',1200)}
+function restoreSnap(snap){const keepSel=S.sel,lk=S.book?{b:!!S.book.locked,p:new Map(S.book.pages.map((p,i)=>[p.id||'#'+i,!!p.locked]))}:null;S.book=JSON.parse(snap);
+  if(lk){if(lk.b)S.book.locked=true;else delete S.book.locked;S.book.pages.forEach((p,i)=>{if(lk.p.get(p.id||'#'+i))p.locked=true;else delete p.locked})}H.last=JSON.stringify(S.book);S.sel=clamp(keepSel,0,S.book.pages.length-1);S.spread=spreadOf(S.sel);S.stickerSel=null;clearTimeout(saveTimer);saveBook();renderEditor()}
+function undo(){commitNow();if(!H.past.length)return;const lm=lockBlock(H.past[H.past.length-1],'undone');if(lm){toast(lm,3500);return}H.future.push(H.last);restoreSnap(H.past.pop());toast('Undone.',1200)}
+function redo(){commitNow();if(!H.future.length)return;const lm=lockBlock(H.future[H.future.length-1],'redone');if(lm){toast(lm,3500);return}H.past.push(H.last);restoreSnap(H.future.pop());toast('Redone.',1200)}
 function saveState(t,cls=''){const el=$('#save-st');if(el){el.textContent=t;el.className='save-st '+cls}}
 function touch(){if(!S.book)return;dedupe(S.book);clearTimeout(H.timer);H.timer=setTimeout(commitNow,500);updUndo();S.book.updated=Date.now();clearTimeout(saveTimer);saveState('Saving…');saveTimer=setTimeout(saveBook,400)}
 async function saveBook(){if(!S.book)return;try{await store.put('books',JSON.parse(JSON.stringify(S.book)));saveState(store.ok?'Saved ✓':'Not saved: this browser keeps nothing',store.ok?'ok':'bad')}catch(e){saveState('Not saved: storage full','bad');toast('Could not save. Storage may be full.')}}
@@ -1351,13 +1383,13 @@ function renderStage(){
   const sc=Math.max(.05,Math.min(aw/(W*Math.max(cols,1)),ah/H));
   const P=pal(bk.cover.palette),board=mix(P.bg,'#000000',.3);
   let boxes;
-  const lb=(i,side)=>`<button class="lay-btn ${side}" data-laybtn="${i}" aria-label="Change layout"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg></button>`;
+  const lb=(i,side)=>pgLocked(i)?`<button class="lay-btn lk-btn on ${side}" data-lock="${i}" aria-label="Unlock" title="${S.book.locked?'Book locked':'Locked'}. Tap to unlock">${LOCK_SVG}</button>`:`<button class="lay-btn ${side}" data-laybtn="${i}" aria-label="Change layout"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg></button>`;
   if(idxs.length===1&&idxs[0]===0){const sw=spinePx(bk),fsc=Math.max(.05,Math.min(aw/(2*W+sw),ah/H)),pt=S.coverPart||'front';
     const tag=(t)=>`<span class="part-tag">${t}</span>`;
     boxes=`<div class="book flat">${scaleWrap(backHTML(bk,'med'),fsc,W,H,'data-part="back"',' part'+(pt==='back'?' sel':''),tag('Back'))}${scaleWrap(spineHTML(bk),fsc,sw,H,'data-part="spine"',' part spine-box'+(pt==='spine'?' sel':''),tag('Spine'))}${boxHTML(bk,bk.pages[0],fsc,'med','data-pi="0" data-part="front"',' part'+(pt==='front'?' sel':''),lb(0,'r')+tag('Front'))}</div>`;
     st.dataset.scale=fsc}
   else if(n)boxes=`<div class="book single">${boxHTML(bk,bk.pages[idxs[0]],sc,'med',`data-pi="${idxs[0]}"`,' sel',lb(idxs[0],'r'))}</div>`;
-  else{const{W:w0,H:h0}=SIZES[bk.size];boxes=`<div class="book open" style="background:${board}">`+idxs.map((i,k)=>i<1?`<div class="pgbox blank${k?' rp':' lp'}" style="width:${r1(w0*sc)}px;height:${r1(h0*sc)}px;background:${mix(P.bg,'#FFFFFF',.55)}">${i===-1?'Inside of front cover':'Inside of back cover'}</div>`:boxHTML(bk,bk.pages[i],sc,'med',`data-pi="${i}"`,(k?' rp':' lp')+(i===S.sel?' sel':''),bk.pages[i].quote?'':lb(i,k?'r':'l'))).join('')+`</div>`}
+  else{const{W:w0,H:h0}=SIZES[bk.size];boxes=`<div class="book open" style="background:${board}">`+idxs.map((i,k)=>i<1?`<div class="pgbox blank${k?' rp':' lp'}" style="width:${r1(w0*sc)}px;height:${r1(h0*sc)}px;background:${mix(P.bg,'#FFFFFF',.55)}">${i===-1?'Inside of front cover':'Inside of back cover'}</div>`:boxHTML(bk,bk.pages[i],sc,'med',`data-pi="${i}"`,(k?' rp':' lp')+(i===S.sel?' sel':''),bk.pages[i].quote&&!pgLocked(i)?'':lb(i,k?'r':'l'))).join('')+`</div>`}
   const total=spreadCount();
   const label=n?(S.sel===0?'Outside of the book: tap back, spine or front to edit':`Page ${S.sel} of ${bk.pages.length-1}`):(S.spread===0?'Outside of the book: tap back, spine or front to edit':(realPages(idxs).length>1?`Pages ${realPages(idxs).join('–')}`:`Page ${realPages(idxs)[0]}`)+` of ${bk.pages.length-1}`);
   const canPrev=n?S.sel>0:S.spread>0,canNext=n?S.sel<bk.pages.length-1:S.spread<total-1;
@@ -1405,23 +1437,30 @@ function setZHot(k){if(zHot===k)return;zHot=k;$$('#stage .zbar').forEach(b=>b.cl
 function zFlash(k){setZHot(k);clearTimeout(zHide);zHide=setTimeout(()=>{const a=document.activeElement;if(!(a&&a.closest&&a.closest('.zbar')))setZHot(null)},4000)}
 function drawPhotoBtns(){const st=$('#stage');if(!st)return;const sr=st.getBoundingClientRect(),lays=$$('.lay-btn',st).map(b=>b.getBoundingClientRect()),S2=30,sc=+st.dataset.scale||1;
   /* T: add a text box to the page. It sits next to the page's ▦ layout button (inside it, towards the page middle); photo buttons keep clear of it */
-  $$('.pgbox[data-pi]',st).forEach(bx=>{const pi=+bx.dataset.pi,pg=S.book.pages[pi];if(!pi||!pg||pg.quote)return;const r=bx.getBoundingClientRect(),lb=bx.querySelector('.lay-btn');let x,y;
-    if(lb){const L=lb.getBoundingClientRect();y=L.top+(L.height-S2)/2;x=lb.classList.contains('l')?L.right+6:L.left-6-S2}else{x=r.right-12-S2;y=r.top+12}
-    const t=document.createElement('button');t.className='enh-btn tx-btn';t.dataset.capadd=pi;t.title='Add a text box';t.setAttribute('aria-label',t.title);t.textContent='T';
-    Object.assign(t.style,{left:(x-sr.left)+'px',top:(y-sr.top)+'px'});st.appendChild(t);lays.push({left:x,right:x+S2,top:y,bottom:y+S2})});
+  /* Lock (open padlock) sits next to T, towards the page middle. A locked page shows only the closed padlock in the corner */
+  $$('.pgbox[data-pi]',st).forEach(bx=>{const pi=+bx.dataset.pi,pg=S.book.pages[pi];if(!pg||pgLocked(pi))return;const r=bx.getBoundingClientRect(),lb=bx.querySelector('.lay-btn');let x,y,dir=-1;
+    if(lb){const L=lb.getBoundingClientRect();y=L.top+(L.height-S2)/2;dir=lb.classList.contains('l')?1:-1;x=dir>0?L.right+6:L.left-6-S2}else{x=r.right-12-S2;y=r.top+12}
+    const put=b=>{Object.assign(b.style,{left:(x-sr.left)+'px',top:(y-sr.top)+'px'});st.appendChild(b);lays.push({left:x,right:x+S2,top:y,bottom:y+S2});x+=dir*(S2+6)};
+    if(pi&&!pg.quote){const t=document.createElement('button');t.className='enh-btn tx-btn';t.dataset.capadd=pi;t.title='Add a text box';t.setAttribute('aria-label',t.title);t.textContent='T';put(t)}
+    const k=document.createElement('button');k.className='enh-btn lk-btn';k.dataset.lock=pi;k.title=pi?'Lock this page':'Lock the cover';k.setAttribute('aria-label',k.title);k.innerHTML=UNLOCK_SVG;put(k)});
   const obst=$$('.cap-ov,.cap-al',st).map(o=>o.getBoundingClientRect());
   $$('.pgbox[data-pi] .ph[data-slot]:not(.empty), .pgbox[data-pi] .ph[data-half], .pgbox[data-part="back"] .ph[data-slot]:not(.empty)',st).forEach(el=>{const s=slotOfEl(el);if(!s)return;const r=el.getBoundingClientRect();
-    drawZoomBar(st,sr,el,s,r,sc,obst);
+    if(elLocked(el))return;drawZoomBar(st,sr,el,s,r,sc,obst);
     if(el.dataset.half||r.width<S2+16||r.height<S2+16)return;
-    let x=r.right-12-S2,y=r.top+12;for(const L of lays)if(x-S2-6<L.right&&x+S2>L.left&&y<L.bottom&&y+S2>L.top)x=L.left-6-S2;if(x-S2-6<r.left+6)return;
+    let x=r.right-12-S2,y=r.top+12;for(let q=0;q<5;q++){const L=lays.find(L=>x<L.right+6&&x+S2+6>L.left&&y<L.bottom+6&&y+S2+6>L.top);if(!L)break;y=L.bottom+8}
+    /* ✦ stays top-right, below the page's corner buttons when they would touch; on a short photo it moves left of them instead */
+    if(y+S2>r.bottom-46){x=r.right-12-S2;y=r.top+12;for(const L of lays)if(x-S2-6<L.right&&x+S2>L.left&&y<L.bottom&&y+S2>L.top)x=L.left-6-S2}if(x-S2-6<r.left+6)return;
     const m=photoMeta.get(s.id),on=!!(m&&m.enh);const b=document.createElement('button');b.className='enh-btn'+(on?' on':'');b.dataset.enh=s.id;
     b.title=on?'Enhanced ('+enhLabel(m.enh)+'). Tap to change':'Enhance photo';b.setAttribute('aria-label',b.title);b.textContent='✦';
     Object.assign(b.style,{left:(x-sr.left)+'px',top:(y-sr.top)+'px'});st.appendChild(b);
     const bx=el.closest('.pgbox'),u=document.createElement('button');u.className='enh-btn un-btn';u.dataset.unat=(bx.dataset.part==='back'?'back':bx.dataset.pi)+':'+el.dataset.slot;u.title='Take this photo off the page';u.setAttribute('aria-label',u.title);u.textContent='✕';
-    Object.assign(u.style,{left:(x-S2-6-sr.left)+'px',top:(y-sr.top)+'px'});st.appendChild(u);
+    /* ✕ on the top-left of the photo, away from ✦, so Enhance is not hit by mistake (left of ✦ only when there is no room) */
+    let ux=r.left+12,uy=r.top+12;for(let q=0;q<5;q++){const L=lays.find(L=>ux<L.right+6&&ux+S2+6>L.left&&uy<L.bottom+6&&uy+S2+6>L.top);if(!L)break;uy=L.bottom+8}
+    if(ux+S2+6>x&&uy<y+S2+6&&uy+S2+6>y||uy+S2>r.bottom-46){ux=x-S2-6;uy=y}
+    Object.assign(u.style,{left:(ux-sr.left)+'px',top:(uy-sr.top)+'px'});st.appendChild(u);
     })}
 /* Zoom bar along the bottom of a photo (turns with a tilted photo; moves above the caption box when they would overlap) */
-function drawZoomBar(st,sr,el,s,r,sc,obst){const fr=el.closest('.fr'),ang=fr?parseFloat((fr.style.transform.match(/rotate\(([-\d.]+)deg\)/)||[])[1])||0:0;
+function drawZoomBar(st,sr,el,s,r,sc,obst){if(elLocked(el))return;const fr=el.closest('.fr'),ang=fr?parseFloat((fr.style.transform.match(/rotate\(([-\d.]+)deg\)/)||[])[1])||0:0;
   const fw0=(+el.dataset.fw||el.offsetWidth)*sc,fh0=(+el.dataset.fh||el.offsetHeight)*sc;if(fw0<90||fh0<60)return;
   const w=Math.max(el.offsetWidth*sc,Math.min(fw0,150)),h=Math.max(el.offsetHeight*sc,Math.min(fh0,60)),BH=34;
   const cx=r.left+r.width/2-sr.left,cy=r.top+r.height/2-sr.top;let d=h/2-BH/2;
@@ -1475,7 +1514,7 @@ document.addEventListener('pointermove',e=>{if(S.view!=='edit'||e.pointerType===
 document.addEventListener('pointerdown',e=>{if(S.view!=='edit'||e.pointerType==='mouse'||!e.target.closest)return;const ph=e.target.closest(PH_SEL);if(ph)zFlash(zKey(ph))},true);
 function renderStrip(){
   const sp=$('#strip');if(!sp)return;const bk=S.book,{W,H}=SIZES[bk.size];const sc=74/H;
-  sp.innerHTML=bk.pages.map((p,i)=>`<div class="thumb" role="button" tabindex="0" data-sel="${i}" aria-current="${i===S.sel}" aria-label="${i?'Page '+i+'. Drag to move.':'Cover'}">${boxHTML(bk,p,sc,'thumb')}<span>${i?i:'Cover'}</span>${i&&!p.quote?`<button class="thumb-x" data-delpage="${i}" aria-label="Delete page ${i}">×</button>`:''}</div>`).join('')+`<button class="thumb-add" data-act="addpage">+ Page</button>`;
+  sp.innerHTML=bk.pages.map((p,i)=>`<div class="thumb" role="button" tabindex="0" data-sel="${i}" aria-current="${i===S.sel}" aria-label="${i?'Page '+i+(pgLocked(i)?'. Locked':'. Drag to move.'):'Cover'+(pgLocked(i)?'. Locked':'')}">${boxHTML(bk,p,sc,'thumb')}<span>${i?i:'Cover'}${pgLocked(i)?`<i class="thumb-lk" title="Locked">${LOCK_SVG}</i>`:''}</span>${i&&!p.quote?`<button class="thumb-x" data-delpage="${i}" aria-label="Delete page ${i}">×</button>`:''}</div>`).join('')+`<button class="thumb-add" data-act="addpage">+ Page</button>`;
   const cur=sp.querySelector('[aria-current="true"]');if(cur){const a=cur.offsetLeft-sp.offsetLeft,b=a+cur.offsetWidth;if(a<sp.scrollLeft)sp.scrollLeft=a-8;else if(b>sp.scrollLeft+sp.clientWidth)sp.scrollLeft=b-sp.clientWidth+8}
 }
 function refreshThumb(i){const sp=$('#strip');if(!sp)return;const el=sp.querySelector(`[data-sel="${i}"]`);if(!el)return renderStrip();const bk=S.book,{H}=SIZES[bk.size];el.firstElementChild.outerHTML=boxHTML(bk,bk.pages[i],74/H,'thumb')}
@@ -1512,7 +1551,7 @@ function renderInsp(){
   const el=$('#insp');if(!el)return;const bk=S.book,p=curPage(),P=pal(bk.cover.palette);
   const isCover=p.layout==='cover',isBack=p.layout==='back';
   const nSlots=slotCount(bk,p);
-  let h=S.sel===0?`<h2>Outside of the book</h2><div class="seg" role="group" aria-label="Part" style="margin-top:10px">${[['back','Back'],['spine','Spine'],['front','Front']].map(([k,l])=>`<button data-part-tab="${k}" aria-pressed="${(S.coverPart||'front')===k}">${l}</button>`).join('')}</div>`:`<h2>Page ${S.sel}${p.quote?' · Caption or quote':''}</h2>${p.quote?'<p class="note">Page 1 is always the caption or quote page, on the right side like a real book.</p>':''}${p.layout==='spreadR'&&spreadPair(bk,p)?`<p class="note">This is the right half of the photo across pages ${S.sel-1}–${S.sel}. Change the photo, zoom or view on page ${S.sel-1}, or drag the photo on either page.</p>`:''}`;
+  let h=S.sel===0?`<h2>Outside of the book</h2><div class="seg" role="group" aria-label="Part" style="margin-top:10px">${[['back','Back'],['spine','Spine'],['front','Front']].map(([k,l])=>`<button data-part-tab="${k}" aria-pressed="${(S.coverPart||'front')===k}">${l}</button>`).join('')}</div>`:`<h2>Page ${S.sel}${p.quote?' · Caption or quote':''}</h2>${p.quote?'<p class="note">Page 1 is always the caption or quote page, on the right side like a real book.</p>':''}${p.layout==='spreadR'&&spreadPair(bk,p)?`<p class="note">This is the right half of the photo across pages ${S.sel-1}–${S.sel}. Change the photo, zoom or view on page ${S.sel-1}, or drag the photo on either page.</p>`:''}`;const hLen=h.length;
   if(S.sel===0&&S.coverPart==='spine'){const sp=bk.spine||{},si=spineInfo(bk);
     h+=`<div class="grp" style="position:sticky;top:-18px;z-index:4;background:var(--surface);padding-bottom:10px;margin-left:-18px;margin-right:-18px;padding-left:18px;padding-right:18px;box-shadow:0 6px 8px -6px rgba(0,0,0,.15)"><span class="lbl">Spine preview</span><div id="sp-prev" style="overflow-x:auto;border-radius:3px">${spinePrev(bk)}</div><p class="note">Shown larger here and stays in view while you edit. Scroll it to see all. On the book it is ${spineMM(bk)} mm wide.</p></div>
       <div class="grp"><span class="lbl">Font</span><div class="chips">${Object.entries(FONTS).map(([k,f])=>`<button class="chip" data-spfont="${k}" aria-pressed="${si.font===k}" style="font-family:${f.css}">${f.label}</button>`).join('')}</div>
@@ -1524,7 +1563,7 @@ function renderInsp(){
       <div class="grp"><span class="lbl">Spine colour</span>${colorRow('spbg',sp.bg||'',['',P.bg,P.accent,'#FFFFFF','#1E1E1E',P.title])}
       <span class="note" style="display:block;margin:10px 0 4px;font-weight:600;color:var(--ink)">Text colour</span>${colorRow('spink',sp.ink||'',['','#1E1E1E','#FFFFFF',P.accent,P.title])}</div>
       <div class="grp"><label class="lbl" for="sp-mm">Spine width (mm)</label><input class="inp" id="sp-mm" type="number" min="3" max="60" step="0.5" data-sp-mm value="${sp.mm||''}" placeholder="${spineMM({...bk,spine:{}})}" style="max-width:140px"><p class="note">Empty = ${spineMM({...bk,spine:{}})} mm, worked out from ${bk.pages.length-1} pages. Type the width your printer gives you for an exact fit.</p></div>`;
-    el.innerHTML=h;const pv=$('#sp-prev');if(pv)pv.scrollLeft=(pv.scrollWidth-pv.clientWidth)/2;return}
+    setInsp(el,h,hLen);const pv=$('#sp-prev');if(pv)pv.scrollLeft=(pv.scrollWidth-pv.clientWidth)/2;return}
   /* Photo zoom is on each photo (bar along its bottom); the panel keeps only Photo size for the photo cover */
   const photosHTML=()=>{if(!nSlots)return'';const rows='';
     const phh=isCover&&bk.cover.style==='photo'?`<label class="note" for="i-phh" style="display:block;margin:12px 0 4px;font-weight:600;color:var(--ink)">Photo size</label><div class="range"><input type="range" id="i-phh" min="0.4" max="1" step="0.02" value="${bk.cover.phH||.74}" data-phh><span id="phh-v">${Math.round((bk.cover.phH||.74)*100)}%</span></div><p class="note">100% fills the whole cover.</p>`:'';
@@ -1572,8 +1611,12 @@ function renderInsp(){
   else if(p.stickers.length)h+=`<p class="note">Tap a sticker on the page to move, resize or remove it.</p>`;
   h+=`</div>`;
   if(!isCover&&!isBack&&!p.quote&&p.layout!=='spread'&&p.layout!=='spreadR')h+=`<div class="grp"><span class="lbl">Page</span><p class="note" style="margin-top:0">To swap two photos, hold one, then drag it onto the other. To move a page, drag it in the strip below. Tap × to delete it. Books print best with an even number of pages. This book has ${bk.pages.length-1}.</p></div>`;
-  el.innerHTML=h;
+  setInsp(el,h,hLen);
 }
+/* A locked page or book: the side panel shows a lock note with Unlock; everything below it can be seen but not used */
+function setInsp(el,h,n){const bk=S.book,o=lockOwner(curPage());if(o===null){el.innerHTML=h;return}
+  const msg=o==='book'?'This book is locked, so nothing can change.':o===S.sel?`${S.sel?'This page':'The cover'} is locked, so nothing on it can change.`:`${lockName(o)} is locked. This page shares its photo, so it is locked too.`;
+  el.innerHTML=h.slice(0,n)+`<div class="lk-note" role="status">${LOCK_SVG}<span>${msg}</span><button class="btn small" data-lock="${o}">Unlock</button></div><div class="lk-body" inert>${h.slice(n)}</div>`}
 
 /* ========== Layout picker (corner button) ========== */
 function openLayoutModal(){
@@ -1595,6 +1638,7 @@ function openLayoutModal(){
   m.addEventListener('click',e=>{
     if(e.target===m||e.target.closest('[data-x]'))return close();
     const l=e.target.closest('[data-picklayout]');if(l&&l.dataset.picklayout==='spread'){close();makeSpread(S.sel);return}
+    if(l&&((p.layout==='spreadR'&&pgLocked(S.sel-1))||(p.layout==='spread'&&pgLocked(S.sel+1)))){close();return lockToast(p.layout==='spread'?S.sel+1:S.sel-1)}
     if(l&&p.layout==='spreadR'){const lp=bk.pages[S.sel-1];if(lp&&lp.layout==='spread')lp.layout='full'}
     if(l&&p.layout==='spread'){const rp=bk.pages[S.sel+1];if(rp&&rp.layout==='spreadR')rp.layout='full'}
     if(l){const L=l.dataset.picklayout;p.layout=L;fillEmpty(bk,p,LAYOUTS[L].n);if(L==='route'&&!p.stops.length){p.stops=[{name:'',date:''}];if(!p.text.title)p.text.title='Travel route'}close();changed({insp:true});return}
@@ -1605,6 +1649,7 @@ function openLayoutModal(){
 
 function makeSpread(i){const bk=S.book;if(i<=1){toast('Page 1 is the caption page. Pick a later page for a 2-page photo.',3500);return}
   const left=i%2===0?i:i-1;if(left<2){toast('Pick a later page for a 2-page photo.');return}
+  if(pgLocked(left)||pgLocked(left+1)){lockToast(pgLocked(left)?left:left+1);return}
   if(left+1>=bk.pages.length)bk.pages.splice(left+1,0,newPage('full'));
   const L=bk.pages[left],Rp=bk.pages[left+1];const keep=(L.photos||[]).find(Boolean)||(Rp.photos||[]).find(Boolean)||null;
   L.layout='spread';L.photos=[keep];Rp.layout='spreadR';Rp.photos=[];if(!keep)fillEmpty(bk,L,1);
@@ -1626,18 +1671,20 @@ function openPicker(slotIdx){
     let h='';
     if(cur)h+=`<h3 class="pk-sec">This box <span>${placeName(bk,tgt)}</span></h3><div class="photo-grid pk-cur">${tile(cur,'<span class="used">This box</span>','Photo in this box. Tap to keep it')}</div>`;
     h+=`<h3 class="pk-sec">Not used yet <span>${free.length}</span></h3>${!free.length&&inUse.length?`<p class="note pk-none">All photos are placed.</p>`:''}<div class="photo-grid">${free.map(id=>tile(id,'','Use this photo')).join('')}<button class="add-tile" data-add><b>+</b>Add photos</button></div>`;
-    if(inUse.length)h+=`<h3 class="pk-sec">Already used <span>${inUse.length}</span></h3><div class="photo-grid pk-used">${inUse.map(id=>{const u=used.get(id);return tile(id,`<span class="used">${cur?'⇄ ':''}${u.name}</span>`,cur?`Swap with the photo on ${u.name}`:`Move here from ${u.name}`)}).join('')}</div>`;
+    if(inUse.length)h+=`<h3 class="pk-sec">Already used <span>${inUse.length}</span></h3><div class="photo-grid pk-used">${inUse.map(id=>{const u=used.get(id);return pLocked(u.p)?tile(id,`<span class="used lk">${LOCK_SVG}${u.name}</span>`,`On ${u.name}, which is locked`):tile(id,`<span class="used">${cur?'⇄ ':''}${u.name}</span>`,cur?`Swap with the photo on ${u.name}`:`Move here from ${u.name}`)}).join('')}</div>`;
     $('#pk-grid',m).innerHTML=h};
   document.body.appendChild(m);grid();
   const close=()=>{m.remove();document.removeEventListener('keydown',onKey)};const onKey=e=>{if(e.key==='Escape')close()};document.addEventListener('keydown',onKey);
   m.addEventListener('click',async e=>{
     if(e.target===m||e.target.closest('[data-x]'))return close();
-    const rm=e.target.closest('[data-rmpid]');if(rm){const id=rm.dataset.rmpid,where=used.has(id)?used.get(id).name:(id===curId()?placeName(bk,tgt):'');
+    const rm=e.target.closest('[data-rmpid]');if(rm&&onLocked(rm.dataset.rmpid)){toast('This photo is on a locked page. Unlock that page to remove it.',3500);return}
+    if(rm){const id=rm.dataset.rmpid,where=used.has(id)?used.get(id).name:(id===curId()?placeName(bk,tgt):'');
       if(!confirm(where?`Remove this photo from the book? It is on ${where}; that box will be empty.`:'Remove this photo from the book?'))return;
       bk.photoIds=bk.photoIds.filter(x=>x!==id);allP(bk).forEach(pp=>(pp.photos||[]).forEach((x,j)=>{if(x&&x.id===id)pp.photos[j]=null}));
       bk.trash=[...new Set([...(bk.trash||[]),id])];changed({insp:true,strip:true});commitNow();grid();
       toastAction('Photo removed from the book.','Undo',()=>{const open=document.body.contains(m);if(open)close();undo();if(open)openPicker(slotIdx)},6000);return}
     const b=e.target.closest('[data-pid]');if(b){const id=b.dataset.pid,cur=curId();if(id===cur)return close();
+      if(used.has(id)&&pLocked(used.get(id).p)){toast(`That photo is on ${used.get(id).name}, which is locked. Unlock it to move the photo.`,3500);return}
       const u=used.get(id),mine=cur?tgt.photos[slotIdx]:null,theirs=u?u.p.photos[u.j]:null;
       /* the photo leaves every other spot (hidden boxes too); a used photo trades places with this box's photo, keeping each photo's framing */
       allP(bk).forEach(pp=>(pp.photos||[]).forEach((x,j)=>{if(x&&x.id===id&&!(u&&pp===u.p&&j===u.j))pp.photos[j]=null}));
@@ -1658,9 +1705,10 @@ function openBookSettings(){
   const sp=spineInfo(bk);
   m.innerHTML=`<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="bs-h"><div class="dlg-h"><h2 id="bs-h">Book settings</h2><button class="icon-btn" data-x aria-label="Close">×</button></div><div class="dlg-b">
     <div class="field"><label class="lbl" for="bs-name">Book name</label><input class="inp" id="bs-name" data-bname value="${esc(bookName(bk))}" maxlength="80"><span class="hint">The name on your shelf. The cover title doesn't change.</span></div>
-    <div class="field"><span class="lbl">Book size</span><div class="chips">${Object.entries(SIZES).map(([k,v])=>`<button class="chip" data-bsize="${k}" aria-pressed="${bk.size===k}">${v.label} ${v.dim}</button>`).join('')}</div><span class="hint">Changing size keeps your photos and words; layouts adjust.</span></div>
+    <div class="field"><span class="lbl">Lock</span><span class="hint">${bk.locked?'The whole book is locked. Unlock it to change the pages, size, type or photos.':'Lock the whole book when it is finished, so nothing can be moved, changed or removed by mistake. To lock one page, tap the lock next to T on that page.'}</span><div><button class="btn small${bk.locked?' primary':''}" data-block>${bk.locked?'Unlock book':'Lock book'}</button></div></div>
+    <div${bk.locked?' class="lk-body" inert':''}><div class="field"><span class="lbl">Book size</span><div class="chips">${Object.entries(SIZES).map(([k,v])=>`<button class="chip" data-bsize="${k}" aria-pressed="${bk.size===k}">${v.label} ${v.dim}</button>`).join('')}</div><span class="hint">Changing size keeps your photos and words; layouts adjust.</span></div>
     <div class="field"><span class="lbl">Book type</span><div class="chips">${Object.entries(TYPES).map(([k,v])=>`<button class="chip" data-btype="${k}" aria-pressed="${bk.type===k}">${v.label}</button>`).join('')}</div><span class="hint">Changes how the spine text is written.</span></div>
-    <div class="field"><span class="lbl">Photos</span><span class="hint">Improve every photo at once: Auto on this device, or AI online.</span><div><button class="btn small" data-enhall>Enhance all photos</button></div></div>
+    <div class="field"><span class="lbl">Photos</span><span class="hint">Improve every photo at once: Auto on this device, or AI online.</span><div><button class="btn small" data-enhall>Enhance all photos</button></div></div></div>
     <div class="field"><span class="lbl">Backup</span><span class="hint">Save this book with its photos as one file, locked with a password if you like. Open it on your phone or laptop with Backup → “Open backup file” on the shelf.</span><div><button class="btn small" data-backup>Save backup file</button></div></div>
     <div class="field"><span class="lbl">Delete</span><div><button class="btn small danger" data-del>Delete this book</button></div></div>
   </div></div>`;
@@ -1668,6 +1716,8 @@ function openBookSettings(){
   const close=()=>m.remove();
   m.addEventListener('click',async e=>{
     if(e.target===m||e.target.closest('[data-x]'))return close();
+    if(e.target.closest('[data-block]')){close();setBookLock(!bk.locked);openBookSettings();return}
+    if(bk.locked&&e.target.closest('[data-bsize],[data-btype],[data-enhall]')){toast('The book is locked. Unlock it first.',2500);return}
     const s=e.target.closest('[data-bsize]');if(s){bk.size=s.dataset.bsize;touch();close();renderEditor();return}
     const t=e.target.closest('[data-btype]');if(t){bk.type=t.dataset.btype;touch();close();openBookSettings();return}
     if(e.target.closest('[data-backup]')){close();saveBackup(bk);return}
@@ -1811,8 +1861,8 @@ function openEnhanceAll(bk){
     const b=e.target.closest('[data-ea]');if(!b)return;const mode=b.dataset.ea;
     if(mode==='ai'&&!aiCfg().key){toast('Add your Gemini key first: open a photo, tap Enhance, then AI settings.');return}
     await ensurePhotos(bk.photoIds);
-    const ids=bk.photoIds.filter(id=>{const r=photoMeta.get(id);return mode==='off'?r&&r.enh:r&&!r.enh});
-    if(!ids.length){toast(mode==='off'?'No enhanced photos in this book.':'All photos are already enhanced.');return}
+    const all=bk.photoIds.filter(id=>{const r=photoMeta.get(id);return mode==='off'?r&&r.enh:r&&!r.enh}),ids=all.filter(id=>!onLocked(id)),lkSkip=all.length-ids.length;
+    if(!ids.length){toast(lkSkip?'Those photos are all on locked pages. Unlock the pages first.':mode==='off'?'No enhanced photos in this book.':'All photos are already enhanced.',3500);return}
     if(mode==='ai'&&!confirm(`Send ${ids.length} photo${ids.length>1?'s':''} to Google Gemini to enhance?`))return;
     close();let stop=false,done=0,fail=0,lastErr='';
     for(const id of ids){if(stop)break;toastAction(`Enhancing photo ${done+fail+1} of ${ids.length}…`,'Stop',()=>{stop=true},600000);
@@ -1821,7 +1871,7 @@ function openEnhanceAll(bk){
       catch(er){fail++;lastErr=aiErr(er);if(/key|internet|limit/.test(lastErr))break}
       await wait(0)}
     touch();renderStage();renderInsp();renderStrip();
-    toast(`${mode==='off'?'Originals back':'Enhanced'}: ${done} photo${done!==1?'s':''}.${fail?` ${fail} failed. ${lastErr}`:''}${stop?' Stopped.':''}`);
+    toast(`${mode==='off'?'Originals back':'Enhanced'}: ${done} photo${done!==1?'s':''}.${fail?` ${fail} failed. ${lastErr}`:''}${stop?' Stopped.':''}${lkSkip?` ${lkSkip} on locked pages skipped.`:''}`);
   });
 }
 
@@ -2102,7 +2152,7 @@ document.addEventListener('click',async e=>{
     return;
   }
   if(S.view!=='edit'||!S.book)return;
-  if(t.closest('.modal,.pv'))return;
+  if(t.closest('.modal,.pv,.lk-body'))return;
   const bk=S.book,p=curPage();
   switch(act){
     case 'shelf':return showShelf();
@@ -2111,14 +2161,17 @@ document.addEventListener('click',async e=>{
     case 'export':return exportPDF();
     case 'prev':return stageFlip(-1,()=>{if(onePage())return select(S.sel-1);S.spread=Math.max(0,S.spread-1);return select(S.spread===0?0:realPages(spreadPages(S.spread))[0])});
     case 'next':return stageFlip(1,()=>{if(onePage())return select(S.sel+1);S.spread=Math.min(spreadCount()-1,S.spread+1);return select(realPages(spreadPages(S.spread))[0])});
-    case 'addpage':{const np=newPage('full');bk.pages.splice(S.sel+1,0,np);touch();select(S.sel+1);return}
+    case 'addpage':{if(bk.locked)return lockToast('book');const np=newPage('full');bk.pages.splice(S.sel+1,0,np);touch();select(S.sel+1);return}
     case 'undo':return undo();
     case 'redo':return redo();
     case 'addstop':p.stops.push({name:'',date:''});changed({insp:true});$$('#insp [data-stop][data-f="name"]').pop()?.focus();return;
     case 'rmsticker':p.stickers=p.stickers.filter(s=>s.id!==S.stickerSel);S.stickerSel=null;return changed({insp:true});
     case 'laymodal':return openLayoutModal();
   }
+  const lkb=t.closest('[data-lock]');if(lkb){const v=lkb.dataset.lock;if(v==='book')return setBookLock(!bk.locked);const i=+v;if(bk.locked)return lockToast('book');return setLock(i,!bk.pages[i].locked)}
   const prt=t.closest('.stage [data-part]');if(prt&&!t.closest('[data-laybtn]')&&!t.closest('.st')&&!t.closest('.ph[data-slot]')){const pt=prt.dataset.part;if(S.coverPart!==pt||S.sel!==0){S.coverPart=pt;S.sel=0;S.stickerSel=null;renderStage();renderStrip();renderInsp()}return}
+  /* Locked page: photos, empty boxes, text boxes and stickers only say it is locked */
+  const lkEl=t.closest('.stage .pgbox .ph[data-slot],.stage .pgbox .ph[data-half],.stage .pgbox .st,.stage .pgbox .cap');if(lkEl&&elLocked(lkEl)){const lbx=lkEl.closest('.pgbox');if(!lbx.dataset.part&&+lbx.dataset.pi!==S.sel)select(+lbx.dataset.pi);return lockToastP(elPage(lkEl))}
   const bph=t.closest('.stage [data-part="back"] .ph[data-slot]');if(bph){if(panJustMoved){panJustMoved=false;return}S.coverPart='back';S.sel=0;renderStage();renderInsp();return openPicker(+bph.dataset.slot)}
   const lbt=t.closest('[data-laybtn]');if(lbt){const i=+lbt.dataset.laybtn;if(i!==S.sel||(i===0&&S.coverPart!=='front')){S.coverPart='front';select(i)}return openLayoutModal()}
   if(panJustMoved){panJustMoved=false;return}
@@ -2126,7 +2179,7 @@ document.addEventListener('click',async e=>{
   const hph=t.closest('.stage .pgbox[data-pi] .ph[data-half]');if(hph&&!t.closest('.st')){const i=+hph.closest('.pgbox').dataset.pi-1;if(i!==S.sel)select(i);return openPicker(0)}
   const phc=t.closest('.stage .pgbox[data-pi] .ph[data-slot]');if(phc&&!t.closest('.st')){const i=+phc.closest('.pgbox').dataset.pi;if(i!==S.sel||(i===0&&S.coverPart!=='front')){S.coverPart='front';select(i)}return openPicker(+phc.dataset.slot)}
   const pb=t.closest('.stage .pgbox[data-pi]');if(pb&&!t.closest('.st')){const i=+pb.dataset.pi;if(t.closest('.cap.editing'))return;if(i!==S.sel){select(i);const cb=t.closest('.cap');if(cb){S.capSelId=cb.dataset.bid;redrawCapBox()}return}S.capSelId=null;if(S.stickerSel){S.stickerSel=null;renderStage();renderInsp()}return}
-  const dp=t.closest('[data-delpage]');if(dp){const i=+dp.dataset.delpage;bk.pages.splice(i,1);touch();commitNow();select(Math.min(S.sel===i?i:S.sel>i?S.sel-1:S.sel,bk.pages.length-1));toastAction(`Page ${i} deleted.`,'Undo',undo);return}
+  const dp=t.closest('[data-delpage]');if(dp){const i=+dp.dataset.delpage;if(pLocked(bk.pages[i])&&!confirm(bk.locked?`This book is locked. Delete page ${i} anyway?`:`Page ${i} is locked. Delete it anyway?`))return;bk.pages.splice(i,1);touch();commitNow();select(Math.min(S.sel===i?i:S.sel>i?S.sel-1:S.sel,bk.pages.length-1));toastAction(`Page ${i} deleted.`,'Undo',undo);return}
   if(stripJustDragged){stripJustDragged=false;return}
   const th=t.closest('[data-sel]');if(th){S.coverPart='front';return select(+th.dataset.sel)}
   const lay=t.closest('[data-layout]');if(lay){const L=lay.dataset.layout;p.layout=L;fillEmpty(bk,p,LAYOUTS[L].n);if(L==='route'&&!p.stops.length){p.stops=[{name:'',date:''}];if(!p.text.title)p.text.title='Travel route'}return changed({insp:true})}
@@ -2154,7 +2207,7 @@ document.addEventListener('click',async e=>{
 document.addEventListener('input',e=>{
   const t=e.target;
   if(S.view==='new'&&t.dataset.w){S.draft[t.dataset.w]=t.value;return}
-  if(S.view!=='edit'||!S.book)return;const bk=S.book,p=curPage();
+  if(S.view!=='edit'||!S.book)return;if(t.closest&&t.closest('.lk-body'))return;const bk=S.book,p=curPage();
   if('bname'in t.dataset){const v=t.value.trim();bk.name=v||undefined;const te=$('.top .title-edit');if(te)te.firstChild.nodeValue=bookName(bk)+' ';return touch()}
   if(t.dataset.bk){bk[t.dataset.bk]=t.value;if(t.dataset.bk==='title'&&!bk.name)$('.top .title-edit').firstChild.nodeValue=(t.value||'Untitled')+' ';return changed()}
   if(t.dataset.capf&&CAPEDIT&&t.closest('.stage .cap.editing')){let v=t.textContent.replace(/\s*\n\s*/g,' ');if(!v.trim()){v='';if(t.innerHTML)t.innerHTML=''}CAPEDIT[t.dataset.capf]=v;touch();redrawCapBox();clearTimeout(thumbTimer);const i=S.sel;thumbTimer=setTimeout(()=>refreshThumb(i),250);return}
@@ -2170,7 +2223,7 @@ document.addEventListener('input',e=>{
   if(ss&&'ssize'in t.dataset){ss.s=+t.value;return changed()}
   if(ss&&'srot'in t.dataset){ss.r=+t.value;return changed()}
 });
-document.addEventListener('change',e=>{const t=e.target;
+document.addEventListener('change',e=>{const t=e.target;if(t.closest&&t.closest('.lk-body'))return;
   if(S.view==='edit'&&('tsmm'in t.dataset||'spmm'in t.dataset)){const sp='spmm'in t.dataset,bk=S.book,o=sp?bk.spine:(t.closest('.cap-al')&&selBox())||curPage(),key=sp?'size':'ts',info=sp?SPM.get(bk):TXM.get(o);if(!info)return;
     const lo=(sp?1.5:3)/mmOf(info,1),v=parseFloat(t.value),want=v>0?v/mmOf(info,1):(o[key]||1),k=clamp(want,Math.min(lo,info.max),info.max);
     if(want>info.max+1e-6)toast(`Largest that fits here: ${Math.floor(mmOf(info,info.max)*10)/10} mm.`);else if(want<lo-1e-6)toast(`Smallest: ${sp?1.5:3} mm.`);
@@ -2184,7 +2237,7 @@ let pan=null,panJustMoved=false,fxDrag=null,fxDragged=false;
 document.addEventListener('pointerdown',e=>{
   if(S.view!=='edit'||e.target.closest('.st'))return;
   const el=e.target.closest('.stage .pgbox[data-pi] .ph[data-slot]:not(.empty),.stage .pgbox[data-pi] .ph[data-half],.stage .pgbox[data-part="back"] .ph[data-slot]:not(.empty)');
-  if(el){const bx=el.closest('.pgbox'),isBack=bx.dataset.part==='back',pi=isBack?0:+bx.dataset.pi-(el.dataset.half?1:0),j=el.dataset.half?0:+el.dataset.slot,s=(isBack?S.book.back:S.book.pages[pi]).photos[j];if(!s)return;
+  if(el){if(elLocked(el))return;const bx=el.closest('.pgbox'),isBack=bx.dataset.part==='back',pi=isBack?0:+bx.dataset.pi-(el.dataset.half?1:0),j=el.dataset.half?0:+el.dataset.slot,s=(isBack?S.book.back:S.book.pages[pi]).photos[j];if(!s)return;
     const m=photoMeta.get(s.id),sc=+($('#stage').dataset.scale)||1;if(!m)return;
     const sp2=el.dataset.span==='2',w=sp2?el.offsetWidth*2:(+el.dataset.fw||el.offsetWidth),h=sp2?el.offsetHeight:(+el.dataset.fh||el.offsetHeight),k=Math.max(w/m.w,h/m.h)*(sp2?(s.z||1):zEff(s,w,h));
     const p0=pan={el,s,pi,x:e.clientX,y:e.clientY,lx:e.clientX,ly:e.clientY,tol:e.pointerType==='mouse'?6:10,fx:s.fx??.5,fy:s.fy??.5,ex:m.w*k-w,ey:m.h*k-h,sc,moved:false};el.setPointerCapture(e.pointerId);
@@ -2215,7 +2268,7 @@ function swStart(p){pan=null;p.s.fx=p.fx;p.s.fy=p.fy;const src=slotRef(p.el);if(
   sw={src,g,srcEls,tgt:null,tEls:[]};if(navigator.vibrate)try{navigator.vibrate(15)}catch(e){}
   toast('Drop it on another photo to swap them.',1800)}
 function swOver(x,y){const el=document.elementsFromPoint(x,y).map(n=>n.closest&&n.closest(PH_ANY)).find(Boolean),r=el&&slotRef(el);
-  const t=r&&!(r.p===sw.src.p&&r.j===sw.src.j)?r:null;if(t&&sw.tgt&&t.p===sw.tgt.p&&t.j===sw.tgt.j)return;
+  const t=r&&!(r.p===sw.src.p&&r.j===sw.src.j)&&!elLocked(el)?r:null;if(t&&sw.tgt&&t.p===sw.tgt.p&&t.j===sw.tgt.j)return;
   sw.tEls.forEach(e=>e.classList.remove('sw-tgt'));sw.tgt=t;sw.tEls=t?refEls(t):[];sw.tEls.forEach(e=>e.classList.add('sw-tgt'))}
 function swEnd(drop){const d=sw;if(!d)return;sw=null;d.g.remove();d.srcEls.forEach(e=>e.classList.remove('sw-src'));d.tEls.forEach(e=>e.classList.remove('sw-tgt'));document.body.classList.remove('sw-on');
   panJustMoved=true;setTimeout(()=>panJustMoved=false,400);if(!drop||!d.tgt)return;
@@ -2236,12 +2289,12 @@ function sdTarget(x){const sp=$('#strip');const ths=$$('.thumb',sp).filter(t=>+t
   return{j,left,top:16,h:ths[0]?ths[0].querySelector('.pgbox').offsetHeight:74}}
 document.addEventListener('pointerdown',e=>{
   if(S.view!=='edit')return;const th=e.target.closest('#strip .thumb');if(!th||e.target.closest('.thumb-x'))return;const i=+th.dataset.sel;if(!i||S.book.pages[i].quote)return;
-  sdrag={th,i,x:e.clientX,y:e.clientY,on:false,touch:e.pointerType!=='mouse',id:e.pointerId};
-  if(sdrag.touch)sdrag.hold=setTimeout(()=>{if(sdrag&&!sdrag.on)sdStart()},320);
+  sdrag={th,i,x:e.clientX,y:e.clientY,on:false,touch:e.pointerType!=='mouse',id:e.pointerId,lk:pLocked(S.book.pages[i])};
+  if(sdrag.touch)sdrag.hold=setTimeout(()=>{if(sdrag&&!sdrag.on){if(sdrag.lk){const p=S.book.pages[sdrag.i];sdrag=null;lockToastP(p)}else sdStart()}},320);
 });
 document.addEventListener('pointermove',e=>{
   if(!sdrag)return;const d=sdrag;const dist=Math.hypot(e.clientX-d.x,e.clientY-d.y);
-  if(!d.on){if(d.touch){if(dist>10){clearTimeout(d.hold);sdrag=null}return}if(dist<6)return;sdStart()}
+  if(!d.on){if(d.touch){if(dist>10){clearTimeout(d.hold);sdrag=null}return}if(dist<6)return;if(d.lk){sdrag=null;lockToastP(S.book.pages[d.i]);return}sdStart()}
   d.ghost.style.left=e.clientX+'px';d.ghost.style.top=e.clientY+'px';
   const t=sdTarget(e.clientX);d.j=t.j;Object.assign(d.bar.style,{left:t.left+'px',top:t.top+'px',height:t.h+'px'});
   const sp=$('#strip'),r=sp.getBoundingClientRect();if(e.clientX<r.left+40)sp.scrollLeft-=12;else if(e.clientX>r.right-40)sp.scrollLeft+=12;
@@ -2254,7 +2307,7 @@ document.addEventListener('contextmenu',e=>{if(sdrag)e.preventDefault()});
 
 /* Caption box handles: corners resize box and text together, sides change only the width */
 let hdrag=null,hRaf=0;
-document.addEventListener('pointerdown',e=>{const hd=e.target.closest('.cap-ov [data-h]');if(!hd||S.view!=='edit')return;e.preventDefault();e.stopPropagation();
+document.addEventListener('pointerdown',e=>{const hd=e.target.closest('.cap-ov [data-h]');if(!hd||S.view!=='edit'||pLocked(curPage()))return;e.preventDefault();e.stopPropagation();
   const bx=selBox();if(!bx)return;const c=$(`#stage .pgbox.sel .pg .cap[data-bid="${bx.id}"]`);if(!c)return;const pg=bx,{W,H}=SIZES[S.book.size],cp={...bx},sc=+($('#stage').dataset.scale)||1;
   const w0=c.offsetWidth,h0=c.offsetHeight,ax=cp.ax/100,ay=cp.ay/100;
   hdrag={h:hd.dataset.h,pg,cp,w0,h0,L0:cp.x*W-ax*w0,T0:cp.y*H-ay*h0,sc,x:e.clientX,y:e.clientY,W,H,ax,ay,moved:false}},true);
@@ -2270,7 +2323,7 @@ document.addEventListener('pointerup',()=>{if(!hdrag)return;const d=hdrag;hdrag=
 
 /* Text box drag: move a box anywhere on its page */
 let cdrag=null,capJustMoved=false;
-document.addEventListener('pointerdown',e=>{if(S.view!=='edit')return;const c=e.target.closest('.stage .pgbox.sel .pg .cap');if(!c)return;if(c.classList.contains('editing')){e.stopPropagation();return}e.preventDefault();e.stopPropagation();
+document.addEventListener('pointerdown',e=>{if(S.view!=='edit')return;const c=e.target.closest('.stage .pgbox.sel .pg .cap');if(!c||elLocked(c))return;if(c.classList.contains('editing')){e.stopPropagation();return}e.preventDefault();e.stopPropagation();
   const box=c.closest('.pgbox');const pg=boxById(S.book.pages[+box.dataset.pi],c.dataset.bid);if(!pg)return;const cp={...pg};
   cdrag={f:e.target.closest('[data-capf]')?.dataset.capf||'title',pi:+box.dataset.pi,c,pg,cp,side:null,w0:c.offsetWidth,box:box.getBoundingClientRect(),x:e.clientX,y:e.clientY,moved:false};c.setPointerCapture(e.pointerId)},true);
 document.addEventListener('pointermove',e=>{if(!cdrag)return;const d=cdrag,{W,H}=SIZES[S.book.size];const dx=(e.clientX-d.x)/d.box.width,dy=(e.clientY-d.y)/d.box.height;if(!d.moved&&Math.hypot(e.clientX-d.x,e.clientY-d.y)<4)return;d.moved=true;
@@ -2285,7 +2338,7 @@ document.addEventListener('pointerup',()=>{if(!cdrag)return;const d=cdrag;cdrag=
 /* Sticker drag */
 let drag=null;
 document.addEventListener('pointerdown',e=>{
-  if(S.view!=='edit')return;const st=e.target.closest('.stage .pgbox.sel .st');if(!st)return;
+  if(S.view!=='edit')return;const st=e.target.closest('.stage .pgbox.sel .st');if(!st||elLocked(st))return;
   e.preventDefault();const p=curPage();const s=p.stickers.find(x=>x.id===st.dataset.sid);if(!s)return;
   if(S.stickerSel!==s.id){S.stickerSel=s.id;$$('.stage .st.on').forEach(x=>x.classList.remove('on'));st.classList.add('on');renderInsp()}
   const box=st.closest('.pgbox').getBoundingClientRect();drag={s,st,box,moved:false};st.setPointerCapture(e.pointerId);
@@ -2300,6 +2353,7 @@ document.addEventListener('keydown',e=>{
   if(S.view!=='edit'||$('.modal,.pv'))return;if(e.target.matches('input,textarea,select'))return;
   if(e.key==='ArrowRight'){e.preventDefault();select(S.sel+1)}
   if(e.key==='ArrowLeft'){e.preventDefault();select(S.sel-1)}
+  if((e.key==='Delete'||e.key==='Backspace')&&pLocked(curPage()))return;
   if((e.key==='Delete'||e.key==='Backspace')&&!S.stickerSel&&selBox()){e.preventDefault();return delBox(S.capSelId)}
   if((e.key==='Delete'||e.key==='Backspace')&&S.stickerSel){const p=curPage();p.stickers=p.stickers.filter(s=>s.id!==S.stickerSel);S.stickerSel=null;changed({insp:true})}
 });
@@ -2321,7 +2375,7 @@ function zMinEl(el,s){return el.dataset.span==='2'?1:zFit(s,+el.dataset.fw||el.o
 const gap=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY)||1;
 document.addEventListener('touchstart',e=>{if(S.view!=='edit'||e.touches.length!==2)return;
   const t=e.touches,el=[...t].map(x=>document.elementFromPoint(x.clientX,x.clientY)).map(x=>x&&x.closest(PH_SEL)).find(Boolean)||document.elementFromPoint((t[0].clientX+t[1].clientX)/2,(t[0].clientY+t[1].clientY)/2)?.closest(PH_SEL);
-  if(!el)return;const s=slotOfEl(el);if(!s)return;e.preventDefault();
+  if(!el||elLocked(el))return;const s=slotOfEl(el);if(!s)return;e.preventDefault();
   if(pan){clearTimeout(pan.hold);pan.s.fx=pan.fx;pan.s.fy=pan.fy;pan=null}
   pinch={s,el,d0:gap(t),z0:zOf(s),zmin:zMinEl(el,s)}},{passive:false,capture:true});
 document.addEventListener('touchmove',e=>{if(!pinch)return;e.preventDefault();if(e.touches.length<2)return;
@@ -2332,12 +2386,12 @@ document.addEventListener('touchend',pinchEnd,true);document.addEventListener('t
 /* Laptop: trackpad pinch or Ctrl + mouse wheel on a photo zooms the photo; on the page area the browser never zooms */
 let wzT=null;
 document.addEventListener('wheel',e=>{if(!e.ctrlKey||S.view!=='edit'||!e.target.closest('.stage'))return;e.preventDefault();
-  const el=e.target.closest(PH_SEL);if(!el)return;const s=slotOfEl(el);if(!s)return;
+  const el=e.target.closest(PH_SEL);if(!el||elLocked(el))return;const s=slotOfEl(el);if(!s)return;
   setZ(s,clamp(zOf(s)*Math.exp(-e.deltaY*.01),zMinEl(el,s),3));liveZoom(el,s);
   clearTimeout(wzT);wzT=setTimeout(()=>{panJustMoved=true;setTimeout(()=>panJustMoved=false,400);changed({insp:true})},250)},{passive:false});
 /* Safari on Mac sends its own pinch events */
 let gz=null;
-document.addEventListener('gesturestart',e=>{if(S.view!=='edit'||!e.target.closest||!e.target.closest('.stage'))return;e.preventDefault();const el=e.target.closest(PH_SEL),s=el&&slotOfEl(el);gz=s?{el,s,z0:zOf(s),zmin:zMinEl(el,s)}:{}},{passive:false});
+document.addEventListener('gesturestart',e=>{if(S.view!=='edit'||!e.target.closest||!e.target.closest('.stage'))return;e.preventDefault();const el=e.target.closest(PH_SEL),s=el&&!elLocked(el)&&slotOfEl(el);gz=s?{el,s,z0:zOf(s),zmin:zMinEl(el,s)}:{}},{passive:false});
 document.addEventListener('gesturechange',e=>{if(!gz)return;e.preventDefault();if(!gz.s)return;setZ(gz.s,clamp(gz.z0*e.scale,gz.zmin,3));liveZoom(gz.el,gz.s)},{passive:false});
 document.addEventListener('gestureend',e=>{if(!gz)return;e.preventDefault();const g=gz;gz=null;if(g.s&&zOf(g.s)!==g.z0)changed({insp:true})},{passive:false});
 let rzT=null;window.addEventListener('resize',()=>{clearTimeout(rzT);rzT=setTimeout(()=>{if(S.view==='edit')renderStage()},120)});

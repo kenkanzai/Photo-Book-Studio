@@ -59,8 +59,9 @@ A single-file photobook app (index.html). Installable on phone and laptop from G
 - On a locked page: no ▦, T, ✦, ✕ or zoom bar; no photo drag, hold-to-swap, pinch, Ctrl+wheel zoom, Choose a photo, text box move/resize/delete, sticker move/delete or Delete key. Another photo cannot be dropped on it. A tap says "Page N is locked" with Unlock (lockToast()).
 - Side panel: lock note with Unlock at the top; the controls below are faded and cannot be used (div.lk-body inert, setInsp()).
 - Strip: small padlock next to the page number; a locked page cannot be dragged; × asks first.
+- A locked page keeps its page number and side (keepLocked()). Adding, deleting or moving other pages flows them around it: a new page added just before it goes after it, and the page after it moves up to fill a deleted page's place. Both halves of a locked 2-page photo stay put. If a step would move a locked page (e.g. it is the last page and a page before it is deleted) or split a 2-page photo, it is not done and a message says why; + Page and Add photos then put the new pages at the end instead. Undo/redo never moves a locked page either.
 - Choose a photo: photos on locked pages show a padlock tag and cannot be swapped out or removed (onLocked()). Enhance all skips them.
-- Undo/redo never changes a locked page or book (lockBlock()). Locking/unlocking is not an undo step, and undo keeps the current locks (restoreSnap()).
+- Undo/redo never changes or moves a locked page or book (lockBlock()). Locking/unlocking is not an undo step, and undo keeps the current locks (restoreSnap()).
 - Preview, PDF and backups are not affected (locks travel in backups).
 
 ## Photo enhance

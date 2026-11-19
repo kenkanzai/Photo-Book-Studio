@@ -996,11 +996,24 @@ function onLocked(id){const bk=S.book;return allP(bk).some(pp=>pLocked(pp)&&(pp.
 function lockSet(fn,msg){if(CAPEDIT)quitCapEdit();commitNow();S.capSelId=null;S.stickerSel=null;fn();touch();H.last=JSON.stringify(S.book);updUndo();renderStage();renderStrip();renderInsp();toast(msg,2200)}
 function setLock(i,on){const p=S.book.pages[i];if(!p)return;lockSet(()=>{if(on)p.locked=true;else delete p.locked},`${lockName(i)} ${on?'locked. Tap the lock to unlock it.':'unlocked.'}`)}
 function setBookLock(on){lockSet(()=>{if(on)S.book.locked=true;else delete S.book.locked},on?'Book locked. Nothing can be changed until you unlock it.':'Book unlocked.')}
+/* A locked page keeps its page number and side: other pages flow around it. A 2-page photo stays together.
+   keepLocked(before,after) returns {pages} with every locked page at its old index, or {err} when that is not possible */
+function lockAnchors(pages){const a=new Map();pages.forEach((p,i)=>{if(p.locked)a.set(p,i);const r=pages[i+1];if(p.layout==='spread'&&r&&r.layout==='spreadR'&&(p.locked||r.locked)){a.set(p,i);a.set(r,i+1)}});return a}
+function keepLocked(before,after){const an=lockAnchors(before),n=after.length,out=new Array(n).fill(null);
+  for(const[p,i]of an){if(!after.includes(p))continue;if(i>=n)return{err:`Page ${i} is locked and can't keep its place. Unlock it first.`};out[i]=p}
+  const rest=after.filter(p=>!an.has(p)),q=[];
+  for(let k=0;k<rest.length;k++){const a=rest[k],b=rest[k+1];if(a.layout==='spread'&&b&&b.layout==='spreadR'&&after.indexOf(b)===after.indexOf(a)+1){q.push([a,b]);k++}else q.push([a])}
+  for(let s=0;s<n;s++){if(out[s])continue;if(!q.length)return{err:'Locked pages could not keep their place.'};const u=q[0];
+    if(u.length===2&&(s+1>=n||out[s+1]))return{err:'A locked page would split a 2-page photo. Unlock it first.'};q.shift();
+    out[s]=u[0];if(u.length===2)out[++s]=u[1]}
+  return{pages:out}}
+function setPages(bk,arr){bk.pages.splice(0,bk.pages.length,...arr)}
+function pageList(nums){const a=[...nums].sort((x,y)=>x-y),g=[];a.forEach(v=>{const l=g[g.length-1];if(l&&v===l[1]+1)l[1]=v;else g.push([v,v])});return g.map(([x,y])=>x===y?''+x:x+'–'+y).join(', ')}
 /* Undo/redo never changes a locked page or a locked book */
 function lockBlock(snap,verb){const bk=S.book;if(!bk)return'';if(bk.locked)return`This book is locked, so it can't be ${verb}. Unlock it first.`;let o;try{o=JSON.parse(snap)}catch(e){return''}
   const cl=x=>{if(!x)return'';const c={...x};delete c.locked;return JSON.stringify(c)};
   for(let i=0;i<bk.pages.length;i++){const p=bk.pages[i];if(!p.locked)continue;const q=p.id?o.pages.find(x=>x.id===p.id):o.pages[i];
-    if(cl(p)!==cl(q)||(i===0&&JSON.stringify([bk.cover,bk.back,bk.spine])!==JSON.stringify([o.cover,o.back,o.spine])))return`${lockName(i)} is locked, so this step can't be ${verb}. Unlock it first.`}return''}
+    if(cl(p)!==cl(q)||(q&&o.pages.indexOf(q)!==i)||(i===0&&JSON.stringify([bk.cover,bk.back,bk.spine])!==JSON.stringify([o.cover,o.back,o.spine])))return`${lockName(i)} is locked, so this step can't be ${verb}. Unlock it first.`}return''}
 
 /* Text measuring: uses the real font when loaded, the fallback otherwise, so titles never break mid-word */
 const _mc=document.createElement('canvas').getContext('2d');const _mw=new Map();let fontVer=0;
@@ -1262,8 +1275,10 @@ function placeNew(bk,tgt,slotIdx,ids){
     if(sp&&sp.photos.length>=2){const h=Math.ceil(sp.photos.length/2),a=sp.photos.slice(0,h),b=sp.photos.slice(h);pages.splice(k,1,newPage(LAY_BY_N[a.length],{photos:a}),newPage(LAY_BY_N[b.length],{photos:b}))}
     else at=endAt;
   }
-  bk.pages.splice(at,0,...pages);
-  return{here:ids.length-q.length,more:q.length,from:at,to:at+pages.length-1};
+  const before=bk.pages.slice(),ins=a=>{const x=before.slice();x.splice(a,0,...pages);return keepLocked(before,x)};
+  let r=ins(at);if(r.err)r=ins(endAt);if(r.err)bk.pages.push(...pages);else setPages(bk,r.pages);
+  const nums=pages.map(p=>bk.pages.indexOf(p));
+  return{here:ids.length-q.length,more:q.length,from:Math.min(...nums),to:Math.max(...nums),list:pageList(nums)};
 }
 function autoPages(book,allIds,stops){
   const nc=coverSlots(book),pages=[newPage('cover',{photos:allIds.slice(0,nc).map(slot)})];const photoIds=allIds.slice(nc);
@@ -1719,7 +1734,7 @@ function openPicker(slotIdx){
       close();changed({insp:true,strip:!!u});
       if(u){commitNow();toastAction(mine?`Swapped with ${u.name}.`:`Moved here from ${u.name}.`,'Undo',undo)}return}
     if(e.target.closest('[data-add]')){pickFiles(async files=>{const st=$('#pk-st',m);const ids=await importFiles(files,bk.id,(i,n)=>{st.textContent=`Adding photo ${i} of ${n}…`},bk.photoIds);close();const dm=dupMsg(ids.dup);if(!ids.length){if(dm)toast(dm,5000);return}bk.photoIds.push(...ids);const r=placeNew(bk,tgt,slotIdx,ids);changed({insp:true,strip:true});
-      if(r)toast((r.from===r.to?`${ids.length} photos added: ${r.here} on this page, ${r.more} on new page ${r.from}.`:`${ids.length} photos added: ${r.here} on this page, ${r.more} on new pages ${r.from}–${r.to}.`)+(dm?' '+dm:''),6000);else if(dm)toast(dm,5000)})}
+      if(r)toast((r.from===r.to?`${ids.length} photos added: ${r.here} on this page, ${r.more} on new page ${r.from}.`:`${ids.length} photos added: ${r.here} on this page, ${r.more} on new pages ${r.list}.`)+(dm?' '+dm:''),6000);else if(dm)toast(dm,5000)})}
   });
   m.querySelector('[data-x]').focus();
 }
@@ -2243,7 +2258,9 @@ document.addEventListener('click',async e=>{
     case 'export':return exportPDF();
     case 'prev':return stageFlip(-1,()=>{if(onePage())return select(S.sel-1);S.spread=Math.max(0,S.spread-1);return select(S.spread===0?0:realPages(spreadPages(S.spread))[0])});
     case 'next':return stageFlip(1,()=>{if(onePage())return select(S.sel+1);S.spread=Math.min(spreadCount()-1,S.spread+1);return select(realPages(spreadPages(S.spread))[0])});
-    case 'addpage':{if(bk.locked)return lockToast('book');const np=newPage('full');bk.pages.splice(S.sel+1,0,np);touch();select(S.sel+1);return}
+    case 'addpage':{if(bk.locked)return lockToast('book');const np=newPage('full'),before=bk.pages.slice(),add=a=>{const x=before.slice();x.splice(a,0,np);return keepLocked(before,x)};
+      let r=add(S.sel+1);if(r.err)r=add(before.length);if(r.err)return toast(r.err,3500);setPages(bk,r.pages);const j=bk.pages.indexOf(np),s0=S.sel;touch();select(j);
+      if(j!==s0+1)toast(`New page added as Page ${j}. Locked pages keep their place.`,3500);return}
     case 'undo':return undo();
     case 'redo':return redo();
     case 'addstop':p.stops.push({name:'',date:''});changed({insp:true});$$('#insp [data-stop][data-f="name"]').pop()?.focus();return;
@@ -2261,7 +2278,7 @@ document.addEventListener('click',async e=>{
   const hph=t.closest('.stage .pgbox[data-pi] .ph[data-half]');if(hph&&!t.closest('.st')){const i=+hph.closest('.pgbox').dataset.pi-1;if(i!==S.sel)select(i);return openPicker(0)}
   const phc=t.closest('.stage .pgbox[data-pi] .ph[data-slot]');if(phc&&!t.closest('.st')){const i=+phc.closest('.pgbox').dataset.pi;if(i!==S.sel||(i===0&&S.coverPart!=='front')){S.coverPart='front';select(i)}return openPicker(+phc.dataset.slot)}
   const pb=t.closest('.stage .pgbox[data-pi]');if(pb&&!t.closest('.st')){const i=+pb.dataset.pi;if(t.closest('.cap.editing'))return;if(i!==S.sel){select(i);const cb=t.closest('.cap');if(cb){S.capSelId=cb.dataset.bid;redrawCapBox()}return}S.capSelId=null;if(S.stickerSel){S.stickerSel=null;renderStage();renderInsp()}return}
-  const dp=t.closest('[data-delpage]');if(dp){const i=+dp.dataset.delpage;if(pLocked(bk.pages[i])&&!confirm(bk.locked?`This book is locked. Delete page ${i} anyway?`:`Page ${i} is locked. Delete it anyway?`))return;bk.pages.splice(i,1);touch();commitNow();select(Math.min(S.sel===i?i:S.sel>i?S.sel-1:S.sel,bk.pages.length-1));toastAction(`Page ${i} deleted.`,'Undo',undo);return}
+  const dp=t.closest('[data-delpage]');if(dp){const i=+dp.dataset.delpage,before=bk.pages.slice(),kr=keepLocked(before,before.filter((_,k)=>k!==i));if(kr.err)return toast(kr.err,3500);if(pLocked(bk.pages[i])&&!confirm(bk.locked?`This book is locked. Delete page ${i} anyway?`:`Page ${i} is locked. Delete it anyway?`))return;const sp0=before[S.sel];setPages(bk,kr.pages);touch();commitNow();select(Math.min(S.sel===i?i:bk.pages.indexOf(sp0),bk.pages.length-1));toastAction(`Page ${i} deleted.`,'Undo',undo);return}
   if(stripJustDragged){stripJustDragged=false;return}
   const th=t.closest('[data-sel]');if(th){S.coverPart='front';return select(+th.dataset.sel)}
   const lay=t.closest('[data-layout]');if(lay){const L=lay.dataset.layout;p.layout=L;fillEmpty(bk,p,LAYOUTS[L].n);if(L==='route'&&!p.stops.length){p.stops=[{name:'',date:''}];if(!p.text.title)p.text.title='Travel route'}return changed({insp:true})}
@@ -2382,7 +2399,8 @@ document.addEventListener('pointermove',e=>{
   const sp=$('#strip'),r=sp.getBoundingClientRect();if(e.clientX<r.left+40)sp.scrollLeft-=12;else if(e.clientX>r.right-40)sp.scrollLeft+=12;
 });
 function sdEnd(drop){const d=sdrag;if(!d)return;sdrag=null;clearTimeout(d.hold);if(!d.on)return;d.ghost.remove();d.bar.remove();d.th.classList.remove('dragging');stripJustDragged=true;setTimeout(()=>stripJustDragged=false,400);
-  if(!drop||d.j===undefined)return;const bk=S.book;let j=d.j;if(j===d.i||j===d.i+1)return;const [pg]=bk.pages.splice(d.i,1);if(j>d.i)j--;bk.pages.splice(j,0,pg);touch();commitNow();S.sel=j;S.spread=spreadOf(j);renderStage();renderStrip();renderInsp();toastAction(`Page moved to ${j}.`,'Undo',undo,3500)}
+  if(!drop||d.j===undefined)return;const bk=S.book;let j=d.j;if(j===d.i||j===d.i+1)return;const before=bk.pages.slice(),x=before.slice(),[pg]=x.splice(d.i,1);if(j>d.i)j--;x.splice(j,0,pg);const kr=keepLocked(before,x);if(kr.err)return toast(kr.err,3500);setPages(bk,kr.pages);j=bk.pages.indexOf(pg);if(j===d.i)return toast('Locked pages keep their place, so this page stays here.',3500);
+  touch();commitNow();S.sel=j;S.spread=spreadOf(j);renderStage();renderStrip();renderInsp();toastAction(`Page moved to ${j}.`+(j!==x.indexOf(pg)?' Locked pages keep their place.':''),'Undo',undo,4000)}
 document.addEventListener('pointerup',()=>sdEnd(true));document.addEventListener('pointercancel',()=>sdEnd(false));
 document.addEventListener('touchmove',e=>{if(sdrag&&sdrag.on)e.preventDefault()},{passive:false});
 document.addEventListener('contextmenu',e=>{if(sdrag)e.preventDefault()});

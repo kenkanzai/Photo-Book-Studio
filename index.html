@@ -6,6 +6,7 @@
 <title>Photobook Studio</title>
 <meta name="description" content="Make printed-style photobooks from your trips and special days.">
 <meta name="theme-color" content="#4F6127">
+<script>/* Theme chosen in the app (Light or Dark) wins over the device setting */try{var t=localStorage.getItem('pbs-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -64,6 +65,8 @@ h1,h2,h3{margin:0;line-height:1.15}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .icon-btn{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--surface);display:inline-flex;align-items:center;justify-content:center;font-size:18px}
 .icon-btn:hover{border-color:var(--muted)}
+.top .theme-btn{background:transparent;border-color:transparent}
+.top .theme-btn:hover{background:var(--surface-2)}
 
 /* Top bar */
 .top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;display:flex;align-items:center;gap:10px;padding:12px clamp(14px,3vw,32px);background:var(--bg);border-bottom:1px solid var(--line)}
@@ -77,6 +80,10 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .shelf-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:28px}
 .shelf-head h1{font-family:'Playfair Display',Georgia,serif;font-weight:800;font-size:clamp(34px,5vw,54px);letter-spacing:-.01em}
 .shelf-head p{margin:6px 0 0;color:var(--muted);max-width:52ch}
+.bk-rem{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-14px 0 24px;font-size:14px;color:var(--muted)}
+.bk-rem.due{color:var(--danger)}
+.bk-rem.due b{font-weight:600}
+.bk-rem .btn{color:var(--ink)}
 .seg{display:inline-flex;padding:4px;border-radius:999px;background:var(--surface-2)}
 .seg button{border:0;background:transparent;padding:6px 14px;border-radius:999px;font-weight:600;font-size:14px;color:var(--muted)}
 .seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
@@ -1299,9 +1306,9 @@ function renderShelf(){
     body=`<div class="covers">${b.map(bk=>{const{W,H}=SIZES[bk.size];const sc=Math.min(170/W,240/H);return`<div class="book-card"><button class="card-art" data-open="${bk.id}" aria-label="Open ${esc(bookName(bk))}"><div class="art">${boxHTML(bk,bk.pages[0],sc,'thumb')}</div></button><div class="card-meta" data-meta="${bk.id}"><div class="name-row"><b>${esc(bookName(bk))}</b><button class="ren" data-rename="${bk.id}" aria-label="Rename ${esc(bookName(bk))}" title="Rename"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 3.5l3 3L7 16H4v-3z"/></svg></button></div><span>${bk.pages.length-1} pages · ${esc(SIZES[bk.size].dim)}</span></div></div>`}).join('')}</div>`;
   }
   app().innerHTML=`<header class="top"><div class="brand"><span class="brand-mark" aria-hidden="true"></span>Photobook Studio</div>
-    <button class="btn ghost small" data-act="backup">Backup</button><button class="btn primary" data-act="new">New book</button></header>
+    <button class="icon-btn theme-btn" data-act="theme" aria-label="Theme" title="Theme"><svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="10" cy="10" r="7.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 2.75a7.25 7.25 0 0 1 0 14.5z" fill="currentColor"/></svg></button><button class="btn ghost small" data-act="backup">Backup</button><button class="btn primary" data-act="new">New book</button></header>
     <main class="shelf-wrap"><div class="shelf-head"><div><h1>Your shelf</h1><p>Trips, birthdays and anniversaries, made into books you can print.</p></div>
-    ${b.length?`<div class="seg" role="group" aria-label="Shelf view"><button data-mode="covers" aria-pressed="${S.shelfMode==='covers'}">Covers</button><button data-mode="spines" aria-pressed="${S.shelfMode==='spines'}">Spines</button></div>`:''}</div>${body}</main>`;
+    ${b.length?`<div class="seg" role="group" aria-label="Shelf view"><button data-mode="covers" aria-pressed="${S.shelfMode==='covers'}">Covers</button><button data-mode="spines" aria-pressed="${S.shelfMode==='spines'}">Spines</button></div>`:''}</div>${b.length?backupLine(b):''}${body}</main>`;
 }
 
 function startRename(id){const meta=document.querySelector(`[data-meta="${id}"]`);const bk=S.books.find(b=>b.id===id);if(!meta||!bk)return;
@@ -1451,7 +1458,7 @@ function drawPhotoBtns(){const st=$('#stage');if(!st)return;const sr=st.getBound
     /* ✦ stays top-right, below the page's corner buttons when they would touch; on a short photo it moves left of them instead */
     if(y+S2>r.bottom-46){x=r.right-12-S2;y=r.top+12;for(const L of lays)if(x-S2-6<L.right&&x+S2>L.left&&y<L.bottom&&y+S2>L.top)x=L.left-6-S2}if(x-S2-6<r.left+6)return;
     const m=photoMeta.get(s.id),on=!!(m&&m.enh);const b=document.createElement('button');b.className='enh-btn'+(on?' on':'');b.dataset.enh=s.id;
-    b.title=on?'Enhanced ('+enhLabel(m.enh)+'). Tap to change':'Enhance photo';b.setAttribute('aria-label',b.title);b.textContent='✦';
+    b.title=on?(isEnh(m.enh)?'Edited ('+enhLabel(m.enh)+')':'Turned or flipped')+'. Tap to change':'Edit photo: enhance, turn or flip';b.setAttribute('aria-label',b.title);b.textContent='✦';
     Object.assign(b.style,{left:(x-sr.left)+'px',top:(y-sr.top)+'px'});st.appendChild(b);
     const bx=el.closest('.pgbox'),u=document.createElement('button');u.className='enh-btn un-btn';u.dataset.unat=(bx.dataset.part==='back'?'back':bx.dataset.pi)+':'+el.dataset.slot;u.title='Take this photo off the page';u.setAttribute('aria-label',u.title);u.textContent='✕';
     /* ✕ on the top-left of the photo, away from ✦, so Enhance is not hit by mistake (left of ✦ only when there is no room) */
@@ -1795,18 +1802,31 @@ async function applyEnh(id,img,info,aiBase){
   else{const rec2={id,data:scaleTo(img,3000,.9),orig};if(aiBase)rec2.ai=aiBase;await store.put('full',rec2);Object.assign(rec,{w:img.naturalWidth,h:img.naturalHeight,thumb:scaleTo(img,360,.8),med:scaleTo(img,1400,.85),enh:info})}
   await store.put('photos',rec);photoMeta.set(id,rec);photoFull.delete(id)}
 async function origImg(id){const f=await store.get('full',id);return f?loadImg(f.orig||f.data):null}
-async function lookImg(id,look,k){const o=await origImg(id);if(!o)return null;return loadImg(lookCanvas(toCanvas(o,3000),look,k).toDataURL('image/jpeg',.92))}
-function enhLabel(e){return !e?'':e.ai?'AI':(LOOKS[e.look]||'Adjusted')}
+async function lookImg(id,look,k,oi){const o=await origImg(id);if(!o)return null;oi=oi||{};return loadImg(lookCanvas(orientC(toCanvas(o,3000),oi.r,oi.fh),look,k).toDataURL('image/jpeg',.92))}
+/* Turn and flip: r = quarter turns to the right (0-3), fh = mirrored left-right (applied first, then the turn) */
+function orientC(src,r,fh){r=((r||0)%4+4)%4;if(!r&&!fh)return src;const W=src.width,H=src.height,c=document.createElement('canvas');c.width=r%2?H:W;c.height=r%2?W:H;
+  const o=c.getContext('2d');o.translate(c.width/2,c.height/2);o.rotate(r*Math.PI/2);if(fh)o.scale(-1,1);o.drawImage(src,-W/2,-H/2);return c}
+/* A point of the photo (0-1) before and after a turn: forward = mirror then turn right r times */
+function oriPt(x,y,o,back){const r=((o.r||0)%4+4)%4;if(back){for(let i=0;i<r;i++)[x,y]=[y,1-x];if(o.fh)x=1-x}else{if(o.fh)x=1-x;for(let i=0;i<r;i++)[x,y]=[1-y,x]}return[x,y]}
+/* After a turn, move each frame's view so the same part of the photo stays in view; returns the old values for Undo */
+function reframeTurn(id,o0,o1){const old=[];if(!S.book||((o0.r||0)===(o1.r||0)&&!!o0.fh===!!o1.fh))return old;
+  allP(S.book).forEach(p=>(p.photos||[]).forEach(sl=>{if(!sl||sl.id!==id)return;old.push([sl,sl.fx,sl.fy]);
+    const[a,b]=oriPt(sl.fx??.5,sl.fy??.5,o0,true),[x,y]=oriPt(a,b,o1);sl.fx=Math.round(x*1e4)/1e4;sl.fy=Math.round(y*1e4)/1e4}));return old}
+function oriOf(e){const o={};if(e&&e.r)o.r=e.r;if(e&&e.fh)o.fh=true;return o}
+/* Enhanced = a look, AI, brightness or contrast. Turn or flip alone does not count, so Enhance all still improves those photos and keeps the turn */
+function isEnh(e){return !!(e&&(e.ai||(e.look&&e.look!=='off')||e.br||e.ct))}
+function enhLabel(e){return !e?'':e.ai?'AI':LOOKS[e.look]||(e.br||e.ct?'Adjusted':'Turned')}
 function aiSettingsHTML(cfg){return`<div class="field" style="margin-top:12px"><label class="lbl" for="ai-key">Your Gemini key</label><input class="inp" id="ai-key" type="password" autocomplete="off" value="${esc(cfg.key||'')}" placeholder="Paste your key here"><span class="hint">Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. It stays on this device. Google may charge for use beyond its free limit.</span></div>
   <div class="field"><label class="lbl" for="ai-model">AI model</label><input class="inp" id="ai-model" value="${esc(cfg.model||'')}" placeholder="${AI_DEF_MODEL}"><span class="hint">Empty = ${AI_DEF_MODEL}. Type a newer Gemini image model name here if Google releases one.</span></div>`}
 function openEnhance(id){
   const rec=photoMeta.get(id);if(!rec)return;
   const m=document.createElement('div');m.className='modal';
-  const st={mode:rec.enh?(rec.enh.ai?'ai':rec.enh.look):'auto',k:rec.enh&&!rec.enh.ai&&rec.enh.k?rec.enh.k:.7,ai:null,busy:false,set:false,br:(rec.enh&&rec.enh.br)||0,ct:(rec.enh&&rec.enh.ct)||0};
+  const st={mode:rec.enh?(rec.enh.ai?'ai':rec.enh.look):'auto',k:rec.enh&&!rec.enh.ai&&rec.enh.k?rec.enh.k:.7,ai:null,busy:false,set:false,br:(rec.enh&&rec.enh.br)||0,ct:(rec.enh&&rec.enh.ct)||0,r:(rec.enh&&rec.enh.r)||0,fh:!!(rec.enh&&rec.enh.fh)};
   const sgn=v=>(v>0?'+':'')+v;
-  m.innerHTML=`<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="en-h"><div class="dlg-h"><h2 id="en-h">Enhance photo</h2><button class="icon-btn" data-x aria-label="Close">×</button></div><div class="dlg-b">
+  m.innerHTML=`<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="en-h"><div class="dlg-h"><h2 id="en-h">Edit photo</h2><button class="icon-btn" data-x aria-label="Close">×</button></div><div class="dlg-b">
     <div class="en-ims"><figure><figcaption>Before</figcaption><canvas id="en-b"></canvas></figure><figure><figcaption id="en-al">After</figcaption><div class="en-wrap"><canvas id="en-a"></canvas><div class="en-busy" id="en-busy" hidden>AI is editing your photo…</div></div></figure></div>
-    <div class="field" style="margin-top:12px"><span class="lbl">Look</span><div class="chips" id="en-looks"><button class="chip" data-look="off">Off</button>${Object.entries(LOOKS).map(([k,l])=>`<button class="chip" data-look="${k}">${l}</button>`).join('')}<button class="chip" data-look="ai">AI ✦</button></div><span class="hint" id="en-hint"></span></div>
+    <div class="field" style="margin-top:12px"><span class="lbl">Turn and flip</span><div class="chips" id="en-ori"><button class="chip" data-ori="l" title="Turn left">↺ Turn left</button><button class="chip" data-ori="r" title="Turn right">↻ Turn right</button><button class="chip" data-ori="h" title="Flip left to right">⇆ Flip</button><button class="chip" data-ori="v" title="Flip upside down">⇅ Flip</button></div></div>
+    <div class="field"><span class="lbl">Look</span><div class="chips" id="en-looks"><button class="chip" data-look="off">Off</button>${Object.entries(LOOKS).map(([k,l])=>`<button class="chip" data-look="${k}">${l}</button>`).join('')}<button class="chip" data-look="ai">AI ✦</button></div><span class="hint" id="en-hint"></span></div>
     <div class="field" id="en-kf"><label class="lbl" for="en-k">Strength</label><div class="range"><input type="range" id="en-k" min="0.1" max="1" step="0.05" value="${st.k}"><span id="en-kv">${Math.round(st.k*100)}%</span></div></div>
     <div class="field"><label class="lbl" for="en-br">Brightness</label><div class="range"><input type="range" id="en-br" min="-50" max="50" step="1" value="${st.br}"><span id="en-brv">${sgn(st.br)}</span></div></div>
     <div class="field"><label class="lbl" for="en-ct">Contrast</label><div class="range"><input type="range" id="en-ct" min="-50" max="50" step="1" value="${st.ct}"><span id="en-ctv">${sgn(st.ct)}</span></div></div>
@@ -1818,10 +1838,10 @@ function openEnhance(id){
   const draw=(c,cv)=>{cv.width=c.width;cv.height=c.height;cv.getContext('2d').drawImage(c,0,0)};
   const hint=t=>$('#en-hint',m).textContent=t||'';
   const render=()=>{if(!srcC)return;$$('#en-looks .chip',m).forEach(b=>b.setAttribute('aria-pressed',b.dataset.look===st.mode));
-    const isAI=st.mode==='ai';$('#en-kf',m).hidden=isAI||st.mode==='off';$('#en-aif',m).hidden=!isAI;$('#en-al',m).textContent=st.mode==='off'?'After · original':'After · '+(isAI?'AI':LOOKS[st.mode]);
-    if(isAI){if(st.ai){draw(adjBC(toCanvas(st.ai,900),st.br,st.ct),ca);const lw=Math.max(st.ai.naturalWidth,st.ai.naturalHeight);hint(lw<2000?`AI result is ${st.ai.naturalWidth}×${st.ai.naturalHeight} px: fine on screen and for smaller photos; a full-page print may look a little soft.`:'')}else{draw(srcC,ca);hint(aiCfg().key?'Tap “Enhance with AI”.':'Add your Gemini key in AI settings first.')}return}
-    hint('');draw(adjBC(st.mode==='off'?srcC:lookCanvas(srcC,st.mode,st.k),st.br,st.ct),ca)};
-  (async()=>{const o=await origImg(id);if(!o){close();return}srcC=toCanvas(o,900);draw(srcC,cb);render();if(st.mode==='ai'&&rec.enh&&rec.enh.ai){const f=await store.get('full',id);if(f&&f.ai)st.ai=await loadImg(f.ai);else{st.ai=await loadImg(f?f.data:photoSrc(id,'med'));st.br=st.ct=0;$('#en-br',m).value=0;$('#en-ct',m).value=0;$('#en-brv',m).textContent='0';$('#en-ctv',m).textContent='0'}st.aiKept=true;render()}})();
+    const isAI=st.mode==='ai';$('#en-kf',m).hidden=isAI||st.mode==='off';$('#en-aif',m).hidden=!isAI;$('#en-al',m).textContent=st.mode==='off'?(st.r||st.fh?'After · turned':'After · original'):'After · '+(isAI?'AI':LOOKS[st.mode]);
+    if(isAI){if(st.ai){draw(adjBC(orientC(toCanvas(st.ai,900),st.r,st.fh),st.br,st.ct),ca);const lw=Math.max(st.ai.naturalWidth,st.ai.naturalHeight);hint(lw<2000?`AI result is ${st.ai.naturalWidth}×${st.ai.naturalHeight} px: fine on screen and for smaller photos; a full-page print may look a little soft.`:'')}else{draw(orientC(srcC,st.r,st.fh),ca);hint(aiCfg().key?'Tap “Enhance with AI”.':'Add your Gemini key in AI settings first.')}return}
+    hint('');const oc=orientC(srcC,st.r,st.fh);draw(adjBC(st.mode==='off'?oc:lookCanvas(oc,st.mode,st.k),st.br,st.ct),ca)};
+  (async()=>{const o=await origImg(id);if(!o){close();return}srcC=toCanvas(o,900);draw(srcC,cb);render();if(st.mode==='ai'&&rec.enh&&rec.enh.ai){const f=await store.get('full',id);if(f&&f.ai)st.ai=await loadImg(f.ai);else{st.ai=await loadImg(f?f.data:photoSrc(id,'med'));st.br=st.ct=0;st.r=0;st.fh=false;$('#en-br',m).value=0;$('#en-ct',m).value=0;$('#en-brv',m).textContent='0';$('#en-ctv',m).textContent='0'}st.aiKept=true;render()}})();
   const showSet=()=>{const s=$('#en-set',m);s.hidden=false;s.innerHTML=aiSettingsHTML(aiCfg())+'<button class="btn small" data-aisave>Save AI settings</button>'};
   const k=$('#en-k',m);k.addEventListener('input',()=>{st.k=+k.value;$('#en-kv',m).textContent=Math.round(st.k*100)+'%';render()});
   [['br','#en-br','#en-brv'],['ct','#en-ct','#en-ctv']].forEach(([key,i,v])=>{const el=$(i,m);el.addEventListener('input',()=>{st[key]=+el.value;$(v,m).textContent=sgn(st[key]);render()})});
@@ -1829,7 +1849,10 @@ function openEnhance(id){
   hold.addEventListener('pointerdown',()=>{if(srcC)draw(srcC,ca)});['pointerup','pointerleave','pointercancel'].forEach(ev=>hold.addEventListener(ev,()=>render()));
   m.addEventListener('click',async e=>{
     if(e.target===m||e.target.closest('[data-x]')){if(!st.busy)close();return}
-    const lb=e.target.closest('[data-look]');if(lb){st.mode=lb.dataset.look;render();if(st.mode==='ai'&&!aiCfg().key)showSet();return}
+    const ob=e.target.closest('[data-ori]');if(ob){const d=ob.dataset.ori;
+      if(!st.picked&&!isEnh(rec.enh))st.mode='off';st.picked=true;
+      if(d==='r')st.r=(st.r+1)%4;else if(d==='l')st.r=(st.r+3)%4;else if(d==='h'){st.r=(4-st.r)%4;st.fh=!st.fh}else{st.r=(6-st.r)%4;st.fh=!st.fh}render();return}
+    const lb=e.target.closest('[data-look]');if(lb){st.picked=true;st.mode=lb.dataset.look;render();if(st.mode==='ai'&&!aiCfg().key)showSet();return}
     if(e.target.closest('[data-aiset]')){const s=$('#en-set',m);if(!s.hidden){s.hidden=true;return}showSet();return}
     if(e.target.closest('[data-aisave]')){aiSave({key:$('#ai-key',m).value.trim(),model:$('#ai-model',m).value.trim()});$('#en-set',m).hidden=true;toast('AI settings saved.');render();return}
     if(e.target.closest('[data-aigo]')){if(st.busy)return;if(!aiCfg().key){showSet();toast('Add your Gemini key first.');return}
@@ -1839,18 +1862,23 @@ function openEnhance(id){
     if(e.target.closest('[data-apply]')){if(st.busy)return;
       if(st.mode==='ai'&&!st.ai){toast('Tap “Enhance with AI” first, or pick another look.');return}
       e.target.disabled=true;toast('Saving…');
-      const bc=st.br||st.ct?{br:st.br,ct:st.ct}:{};
-      try{if(st.mode==='off'){if(st.br||st.ct){const o=await origImg(id);await applyEnh(id,await loadImg(adjBC(toCanvas(o,3000),st.br,st.ct).toDataURL('image/jpeg',.92)),{look:'off',...bc})}else await applyEnh(id,null)}
-        else if(st.mode==='ai'){const model=st.aiKept&&rec.enh&&rec.enh.model||aiCfg().model||AI_DEF_MODEL;const fin=st.br||st.ct?await loadImg(adjBC(toCanvas(st.ai,3000),st.br,st.ct).toDataURL('image/jpeg',.92)):st.ai;await applyEnh(id,fin,{ai:true,model,...bc},st.ai.src)}
-        else{const o=await origImg(id);await applyEnh(id,await loadImg(adjBC(lookCanvas(toCanvas(o,3000),st.mode,st.k),st.br,st.ct).toDataURL('image/jpeg',.92)),{look:st.mode,k:st.k,...bc})}}catch(er){toast(er&&er.name==='QuotaExceededError'?'Storage is full. Delete a book first.':'Could not save the photo.');e.target.disabled=false;return}
-      close();touch();renderStage();renderInsp();renderStrip();toast(st.mode==='off'&&!st.br&&!st.ct?'Original photo back.':'Photo enhanced.')}
+      const bc=st.br||st.ct?{br:st.br,ct:st.ct}:{},oi=oriOf(st),turned=!!(oi.r||oi.fh),o0=oriOf(rec.enh);
+      const prevF=await store.get('full',id),prevR=await store.get('photos',id);
+      try{if(st.mode==='off'){if(st.br||st.ct||turned){const o=await origImg(id);await applyEnh(id,await loadImg(adjBC(orientC(toCanvas(o,3000),st.r,st.fh),st.br,st.ct).toDataURL('image/jpeg',.92)),{look:'off',...bc,...oi})}else await applyEnh(id,null)}
+        else if(st.mode==='ai'){const model=st.aiKept&&rec.enh&&rec.enh.model||aiCfg().model||AI_DEF_MODEL;const fin=st.br||st.ct||turned?await loadImg(adjBC(orientC(toCanvas(st.ai,3000),st.r,st.fh),st.br,st.ct).toDataURL('image/jpeg',.92)):st.ai;await applyEnh(id,fin,{ai:true,model,...bc,...oi},st.ai.src)}
+        else{const o=await origImg(id);await applyEnh(id,await loadImg(adjBC(lookCanvas(orientC(toCanvas(o,3000),st.r,st.fh),st.mode,st.k),st.br,st.ct).toDataURL('image/jpeg',.92)),{look:st.mode,k:st.k,...bc,...oi})}}catch(er){toast(er&&er.name==='QuotaExceededError'?'Storage is full. Delete a book first.':'Could not save the photo.');e.target.disabled=false;return}
+      const oldFr=reframeTurn(id,o0,oi);
+      close();touch();renderStage();renderInsp();renderStrip();
+      toastAction(st.mode==='off'&&!st.br&&!st.ct?(turned?'Photo turned.':'Original photo back.'):'Photo edited.','Undo',async()=>{
+        if(!prevF||!prevR)return;await store.put('full',prevF);await store.put('photos',prevR);photoMeta.set(id,prevR);photoFull.delete(id);
+        oldFr.forEach(([sl,fx,fy])=>{sl.fx=fx;sl.fy=fy});if(S.book){touch();renderStage();renderInsp();renderStrip()}toast('Undone.',1200)},8000)}
   });
 }
 /* Book settings: all photos at once */
 function openEnhanceAll(bk){
   const m=document.createElement('div');m.className='modal';
   m.innerHTML=`<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="ea-h"><div class="dlg-h"><h2 id="ea-h">Enhance all photos</h2><button class="icon-btn" data-x aria-label="Close">×</button></div><div class="dlg-b">
-    <p class="note" style="margin-top:0">Photos you already enhanced are skipped. The originals are kept, so you can go back any time.</p>
+    <p class="note" style="margin-top:0">Photos you already enhanced are skipped. The originals are kept, so you can go back any time. Turned or flipped photos stay turned.</p>
     <div class="field"><span class="lbl">Auto (on this device)</span><span class="hint">Free and offline. Fixes colour, light and contrast.</span><div><button class="btn small primary" data-ea="auto">Auto enhance all</button></div></div>
     <div class="field"><span class="lbl">AI (online)</span><span class="hint">Each photo is sent to Google Gemini with your key, one by one. Takes longer and may cost money beyond Google's free limit.</span><div><button class="btn small" data-ea="ai">AI enhance all</button></div></div>
     <div class="field"><span class="lbl">Undo</span><div><button class="btn small" data-ea="off">Put all originals back</button></div></div>
@@ -1859,15 +1887,17 @@ function openEnhanceAll(bk){
   m.addEventListener('click',async e=>{
     if(e.target===m||e.target.closest('[data-x]'))return close();
     const b=e.target.closest('[data-ea]');if(!b)return;const mode=b.dataset.ea;
-    if(mode==='ai'&&!aiCfg().key){toast('Add your Gemini key first: open a photo, tap Enhance, then AI settings.');return}
+    if(mode==='ai'&&!aiCfg().key){toast('Add your Gemini key first: tap ✦ on a photo, pick AI, then AI settings.');return}
     await ensurePhotos(bk.photoIds);
-    const all=bk.photoIds.filter(id=>{const r=photoMeta.get(id);return mode==='off'?r&&r.enh:r&&!r.enh}),ids=all.filter(id=>!onLocked(id)),lkSkip=all.length-ids.length;
+    const all=bk.photoIds.filter(id=>{const r=photoMeta.get(id);return r&&(mode==='off'?isEnh(r.enh):!isEnh(r.enh))}),ids=all.filter(id=>!onLocked(id)),lkSkip=all.length-ids.length;
     if(!ids.length){toast(lkSkip?'Those photos are all on locked pages. Unlock the pages first.':mode==='off'?'No enhanced photos in this book.':'All photos are already enhanced.',3500);return}
     if(mode==='ai'&&!confirm(`Send ${ids.length} photo${ids.length>1?'s':''} to Google Gemini to enhance?`))return;
     close();let stop=false,done=0,fail=0,lastErr='';
     for(const id of ids){if(stop)break;toastAction(`Enhancing photo ${done+fail+1} of ${ids.length}…`,'Stop',()=>{stop=true},600000);
-      try{if(mode==='off')await applyEnh(id,null);else if(mode==='auto')await applyEnh(id,await lookImg(id,'auto',.7),{look:'auto',k:.7});
-        else{const o=await origImg(id);{const ai=await aiEnhance(toCanvas(o,3000),'');await applyEnh(id,ai,{ai:true,model:(aiCfg().model||AI_DEF_MODEL)},ai.src)}}done++}
+      try{const oi=oriOf(photoMeta.get(id).enh),turned=!!(oi.r||oi.fh);
+        if(mode==='off'){if(turned){const o=await origImg(id);await applyEnh(id,await loadImg(orientC(toCanvas(o,3000),oi.r,oi.fh).toDataURL('image/jpeg',.92)),{look:'off',...oi})}else await applyEnh(id,null)}
+        else if(mode==='auto')await applyEnh(id,await lookImg(id,'auto',.7,oi),{look:'auto',k:.7,...oi});
+        else{const o=await origImg(id);{const ai=await aiEnhance(toCanvas(o,3000),'');const fin=turned?await loadImg(orientC(toCanvas(ai,3000),oi.r,oi.fh).toDataURL('image/jpeg',.92)):ai;await applyEnh(id,fin,{ai:true,model:(aiCfg().model||AI_DEF_MODEL),...oi},ai.src)}}done++}
       catch(er){fail++;lastErr=aiErr(er);if(/key|internet|limit/.test(lastErr))break}
       await wait(0)}
     touch();renderStage();renderInsp();renderStrip();
@@ -1930,7 +1960,38 @@ async function saveAllBackup(){
   const parts=[MULTI];
   try{for(let i=0;i<all.length;i++){toast(`Preparing book ${i+1} of ${all.length}…`);const b=await bookBlob(all[i],pw);parts.push(u64(b.size),b)}}catch(e){toast('Could not lock the backup in this browser.');return}
   const d=new Date(),name=`Photobook-backup-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.pbook`;
-  if(await shareOrSave(new Blob(parts,{type:'application/octet-stream'}),name,'Photobook backup')!==false)toast(`Backup saved: ${all.length} book${all.length>1?'s':''}.`);
+  if(await shareOrSave(new Blob(parts,{type:'application/octet-stream'}),name,'Photobook backup')!==false){try{localStorage.setItem('pbs-lastbackup',String(Date.now()))}catch(e){}toast(`Backup saved: ${all.length} book${all.length>1?'s':''}.`);if(S.view==='shelf')renderShelf()}
+}
+/* Last backup reminder: time of the last "Back up all books" on this device (localStorage 'pbs-lastbackup') */
+function lastBackup(){try{return +localStorage.getItem('pbs-lastbackup')||0}catch(e){return 0}}
+function daysAgo(t){const a=new Date(t),n=new Date();a.setHours(0,0,0,0);n.setHours(0,0,0,0);const d=Math.round((n-a)/864e5);return d<=0?'today':d===1?'yesterday':d+' days ago'}
+function backupLine(books){const t=lastBackup();const changed=books.some(bk=>(bk.updated||bk.created||0)>t);
+  const btn='<button class="btn small" data-act="backup-now">Back up now</button>';
+  if(!t)return`<div class="bk-rem due" role="status"><span><b>Not backed up yet.</b> Your books are only on this device.</span>${btn}</div>`;
+  if(changed)return`<div class="bk-rem due" role="status"><span><b>Last backup ${daysAgo(t)}.</b> Some books changed since.</span>${btn}</div>`;
+  return`<div class="bk-rem" role="status">Last backup ${daysAgo(t)}. Nothing changed since.</div>`}
+/* Theme: Auto follows the device. Light or Dark is kept on this device only (localStorage 'pbs-theme'). */
+const darkMQ=window.matchMedia?matchMedia('(prefers-color-scheme: dark)'):null;
+function themeMode(){try{const t=localStorage.getItem('pbs-theme');return t==='light'||t==='dark'?t:'auto'}catch(e){return'auto'}}
+function applyTheme(){const m=themeMode(),r=document.documentElement;if(m==='auto')r.removeAttribute('data-theme');else r.setAttribute('data-theme',m);
+  const dark=m==='dark'||(m==='auto'&&!!darkMQ&&darkMQ.matches);
+  try{if(window.AndroidFiles&&AndroidFiles.setTheme)AndroidFiles.setTheme(dark)}catch(e){}}
+function setTheme(m){try{if(m==='auto')localStorage.removeItem('pbs-theme');else localStorage.setItem('pbs-theme',m)}catch(e){}applyTheme()}
+if(darkMQ&&darkMQ.addEventListener)darkMQ.addEventListener('change',()=>{if(themeMode()==='auto')applyTheme()});
+applyTheme();
+function openThemeWin(){
+  const m=document.createElement('div');m.className='modal';const cur=themeMode();
+  const opt=(v,l)=>`<button data-theme-set="${v}" aria-pressed="${cur===v}">${l}</button>`;
+  m.innerHTML=`<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="th-h"><div class="dlg-h"><h2 id="th-h">Theme</h2><button class="icon-btn" data-x aria-label="Close">×</button></div><div class="dlg-b">
+    <p class="note" style="margin-top:0">Auto follows this phone or computer. Light or Dark stays the same here, whatever the device is set to.</p>
+    <div class="seg" role="group" aria-label="Theme">${opt('auto','Auto')}${opt('light','Light')}${opt('dark','Dark')}</div>
+  </div></div>`;
+  document.body.appendChild(m);const close=()=>m.remove();
+  m.addEventListener('click',e=>{
+    if(e.target===m||e.target.closest('[data-x]'))return close();
+    const b=e.target.closest('[data-theme-set]');if(b){setTheme(b.dataset.themeSet);m.querySelectorAll('[data-theme-set]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))}
+  });
+  m.querySelector('[data-x]').focus();
 }
 function openBackupWin(){
   const m=document.createElement('div');m.className='modal';
@@ -2129,6 +2190,8 @@ document.addEventListener('click',async e=>{
   if(S.view==='shelf'){
     if(act==='new')return startNew();
     if(act==='backup'){openBackupWin();return}
+    if(act==='theme'){openThemeWin();return}
+    if(act==='backup-now'){saveAllBackup();return}
     const rn=t.closest('[data-rename]');if(rn){startRename(rn.dataset.rename);return}
     if(t.closest('.ren-inp'))return;
     const o=t.closest('[data-open]');if(o)return openBook(o.dataset.open);

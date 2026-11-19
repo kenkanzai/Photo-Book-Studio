@@ -901,11 +901,12 @@ const COVER_STYLES=[
 ];
 const LAYOUTS={
   photoText:{label:'Photo + caption',n:1},full:{label:'Full page',n:1},spread:{label:'Across 2 pages',n:1},spreadR:{label:'Right half of a 2-page photo',n:0,hidden:true},two:{label:'2 stacked',n:2},twoSide:{label:'2 side by side',n:2},
-  three:{label:'1 big + 2',n:3},grid4:{label:'4 grid',n:4},collage:{label:'Collage',n:5},grid6:{label:'6 grid',n:6},
+  three:{label:'1 big + 2',n:3},grid4:{label:'4 grid',n:4},collage4:{label:'4 collage',n:4},collage:{label:'Collage',n:5},grid6:{label:'6 grid',n:6},collage6:{label:'6 collage',n:6},
   centered:{label:'Centered photo',n:1},scatter2:{label:'2 scattered',n:2},scatter3:{label:'3 scattered',n:3},
   title:{label:'Title page',n:0},chapter:{label:'Place page',n:0},route:{label:'Travel route',n:0},note:{label:'Words only',n:0}
 };
-const FRAMED=['collage','scatter2','scatter3'];
+const FRAMED=['collage','collage4','collage6','scatter2','scatter3'];
+const COLLAGES=['collage','collage4','collage6'];
 const TYPES={
   trip:{label:'Trip',title:'Greece',sub:'Country or region',subPh:'Philippines',yr:'2026',motif:'palm',style:'bold',palette:'sage',font:'anton'},
   birthday:{label:'Birthday',title:'Her magical seven',sub:'Name',subPh:'Jarriela',yr:'2026',motif:'balloon',style:'poster',palette:'blush',font:'cormorant'},
@@ -945,23 +946,37 @@ async function ensurePhotos(ids){const need=[...new Set(ids)].filter(id=>id&&!ph
 function readAsDataURL(file){return new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=()=>rej(fr.error);fr.readAsDataURL(file)})}
 function loadImg(src){return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error('decode'));i.src=src})}
 function scaleTo(img,max,qual){const s=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.naturalWidth*s));c.height=Math.max(1,Math.round(img.naturalHeight*s));const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',qual)}
-async function importFiles(files,bookId,onProgress){
-  const ids=[];let skipped=0,i=0;
+/* Same-photo check: a 16×16 colour print of the small (360 px) copy of the original + its shape.
+   Same photo = same shape, colours nearly equal everywhere (survives re-saving or a smaller copy; a moved person or a different shot does not match). Kept in the photo record as sig. */
+async function sigOf(src,a){const img=await loadImg(src);const c=document.createElement('canvas');c.width=c.height=16;const x=c.getContext('2d',{willReadFrequently:true});x.imageSmoothingQuality='high';x.drawImage(img,0,0,16,16);
+  const d=x.getImageData(0,0,16,16).data,v=new Uint8Array(768);for(let i=0,j=0;i<d.length;i+=4){v[j++]=d[i];v[j++]=d[i+1];v[j++]=d[i+2]}return{a:Math.round(a*1000)/1000,v:btoa(String.fromCharCode(...v))}}
+function sigSame(s1,s2){if(!s1||!s2||Math.abs(s1.a-s2.a)>.02)return false;const A=atob(s1.v),B=atob(s2.v);if(A.length!==B.length)return false;let sum=0;
+  for(let i=0;i<A.length;i++){const d=Math.abs(A.charCodeAt(i)-B.charCodeAt(i));if(d>20)return false;sum+=d}return sum/A.length<=3}
+/* Print of a photo already in the book (older photos have none yet: made once from the original and saved) */
+async function sigFor(id){const r=await store.get('photos',id);if(!r)return null;if(r.sig)return r.sig;
+  try{const f=await store.get('full',id);let src=r.thumb,a=r.w/r.h;if(f&&f.orig){const o=await loadImg(f.orig);src=scaleTo(o,360,.8);a=o.naturalWidth/o.naturalHeight}
+    r.sig=await sigOf(src,a);await store.put('photos',r);const m=photoMeta.get(id);if(m)m.sig=r.sig;return r.sig}catch(e){return null}}
+/* Adds the chosen files as photos. haveIds = photos already in the book: a file that is one of them (or picked twice) is skipped. Returns the new ids; ids.dup = how many were skipped as already there */
+async function importFiles(files,bookId,onProgress,haveIds=[]){
+  const ids=[];let skipped=0,dup=0,i=0;const have=[];for(const id of haveIds){const g=await sigFor(id);if(g)have.push(g)}
   for(const f of files){
     i++;onProgress&&onProgress(i,files.length);
     try{
       const img=await loadImg(await readAsDataURL(f));
+      const thumb=scaleTo(img,360,.8),sig=await sigOf(thumb,img.naturalWidth/img.naturalHeight);
+      if(have.some(g=>sigSame(g,sig))){dup++;continue}
       const id=uid();
-      const rec={id,bookId,w:img.naturalWidth,h:img.naturalHeight,thumb:scaleTo(img,360,.8),med:scaleTo(img,1400,.85)};
+      const rec={id,bookId,w:img.naturalWidth,h:img.naturalHeight,thumb,med:scaleTo(img,1400,.85),sig};
       await store.put('full',{id,data:scaleTo(img,3000,.9)});
       await store.put('photos',rec);
-      photoMeta.set(id,rec);ids.push(id);
+      photoMeta.set(id,rec);ids.push(id);have.push(sig);
     }catch(e){skipped++;if(e&&e.name==='QuotaExceededError'){toast('Storage is full. Remove some books or photos.');break}}
     await wait(0);
   }
   if(skipped)toast(`${skipped} file${skipped>1?'s':''} could not be read (use JPG or PNG).`);
-  return ids;
+  ids.dup=dup;return ids;
 }
+const dupMsg=n=>n?`${n} photo${n>1?'s are':' is'} already in this book, so ${n>1?'they were':'it was'} not added again.`:'';
 
 /* ========== Page model ========== */
 function newPage(layout,extra={}){return Object.assign({id:uid(),layout,photos:[],text:{title:'',sub:'',body:''},bg:'',ink:'',font:'',ts:1,motif:'',stops:[],stickers:[],boxes:[]},extra)}
@@ -1090,6 +1105,8 @@ function slotRects(layout,W,H){
     case 'three':{if(wide){const bw=(iw-g)*.6,sw=iw-g-bw,sh=(ih-g)/2;return[[m,m,bw,ih],[m+bw+g,m,sw,sh],[m+bw+g,m+sh+g,sw,sh]]}const bh=(ih-g)*.6,sh=ih-g-bh,sw=(iw-g)/2;return[[m,m,iw,bh],[m,m+bh+g,sw,sh],[m+sw+g,m+bh+g,sw,sh]]}
     case 'grid4':{const w=(iw-g)/2,h=(ih-g)/2;return[[m,m,w,h],[m+w+g,m,w,h],[m,m+h+g,w,h],[m+w+g,m+h+g,w,h]]}
     case 'photoText':return[[m,m,iw,ih*.72]];
+    case 'collage4':return[[.05,.05,.5,.42,-4],[.45,.08,.5,.4,3],[.06,.5,.48,.42,2.5],[.46,.52,.49,.42,-3]].map(([x,y,w,h,r])=>[x*W,y*H,w*W,h*H,r]);
+    case 'collage6':return(wide?[[.04,.06,.34,.44,-4],[.34,.08,.33,.42,3],[.63,.05,.33,.44,-2.5],[.05,.5,.33,.44,2.5],[.35,.52,.32,.42,-3],[.63,.5,.33,.44,3.5]]:[[.05,.04,.5,.31,-4],[.46,.06,.49,.29,3],[.06,.35,.47,.3,2.5],[.47,.36,.48,.3,-3],[.05,.66,.49,.3,-2],[.46,.67,.49,.29,3.5]]).map(([x,y,w,h,r])=>[x*W,y*H,w*W,h*H,r]);
     case 'collage':return[[.05,.05,.52,.38,-4],[.47,.07,.48,.34,3],[.07,.42,.44,.3,2.5],[.49,.43,.45,.29,-3],[.18,.69,.62,.27,-1.5]].map(([x,y,w,h,r])=>[x*W,y*H,w*W,h*H,r]);
   }
   return[];
@@ -1129,7 +1146,7 @@ function pageHTML(book,page,q){
       if(pr)x=spreadDiv((pr.left.photos||[])[0],pr.half,W,H,q);
       else if(page.layout==='spread')x=phDiv(ph[0],0,0,W,H,q,'',0);
       else x=q!=='full'?`<div class="fl" style="left:0;right:0;top:0;bottom:0;align-items:center;justify-content:center">${T(`font-size:${r1(Math.min(W,H)*.03)}px;color:#8A8C86;font-weight:600;`,'Choose a layout with ▦')}</div>`:'';break}
-    case 'collage':case 'scatter2':case 'scatter3':{bg=page.bg||(page.layout==='collage'?mix(P.bg,'#FFFFFF',.35):'#FFFFFF');const b=Math.min(W,H)*(page.layout==='collage'?.016:.022);
+    case 'collage':case 'collage4':case 'collage6':case 'scatter2':case 'scatter3':{const isC=COLLAGES.includes(page.layout);bg=page.bg||(isC?mix(P.bg,'#FFFFFF',.35):'#FFFFFF');const b=Math.min(W,H)*(isC?.016:.022);
       x=slotRects(page.layout,W,H).map((rc,i)=>{const iw=rc[2]-2*b,ih=rc[3]-2*b,[nw,nh]=ph[i]&&ph[i].id?shrinkTo(ph[i],iw,ih):[iw,ih],cx=rc[0]+rc[2]/2,cy=rc[1]+rc[3]/2;
         return`<div class="fr" data-b="${r1(b)}" data-cx="${r1(cx)}" data-cy="${r1(cy)}" style="left:${r1(cx-nw/2-b)}px;top:${r1(cy-nh/2-b)}px;width:${r1(nw+2*b)}px;height:${r1(nh+2*b)}px;transform:rotate(${rc[4]}deg)">${phDiv(ph[i],b,b,nw,nh,q,'',i,iw,ih)}</div>`}).join('');break}
     default:{ // full, two, three, grid4
@@ -1541,6 +1558,8 @@ const LAY_ICON={
   centered:'<rect x="0" y="0" width="34" height="40" rx="2" opacity=".18"/><rect x="7" y="8" width="20" height="24" rx="1"/>',
   scatter2:'<rect x="0" y="0" width="34" height="40" rx="2" opacity=".18"/><rect x="5" y="4" width="18" height="15" rx="1" transform="rotate(-6 14 11)"/><rect x="12" y="21" width="18" height="15" rx="1" transform="rotate(5 21 28)"/>',
   scatter3:'<rect x="0" y="0" width="34" height="40" rx="2" opacity=".18"/><rect x="4" y="3" width="16" height="12" rx="1" transform="rotate(-7 12 9)"/><rect x="15" y="14" width="15" height="12" rx="1" transform="rotate(6 22 20)"/><rect x="5" y="25" width="16" height="12" rx="1" transform="rotate(-2 13 31)"/>',
+  collage4:'<rect x="3" y="4" width="14" height="15" rx="1" transform="rotate(-6 10 11)"/><rect x="17" y="5" width="14" height="14" rx="1" transform="rotate(5 24 12)"/><rect x="3" y="21" width="14" height="15" rx="1" transform="rotate(4 10 28)"/><rect x="17" y="21" width="14" height="15" rx="1" transform="rotate(-5 24 28)"/>',
+  collage6:'<rect x="3" y="3" width="14" height="10" rx="1" transform="rotate(-6 10 8)"/><rect x="17" y="4" width="14" height="10" rx="1" transform="rotate(5 24 9)"/><rect x="3" y="15" width="14" height="10" rx="1" transform="rotate(4 10 20)"/><rect x="17" y="15" width="14" height="10" rx="1" transform="rotate(-5 24 20)"/><rect x="3" y="27" width="14" height="10" rx="1" transform="rotate(-3 10 32)"/><rect x="17" y="27" width="14" height="10" rx="1" transform="rotate(6 24 32)"/>',
   collage:'<rect x="4" y="5" width="15" height="12" rx="1" transform="rotate(-6 11 11)"/><rect x="16" y="6" width="14" height="11" rx="1" transform="rotate(5 23 11)"/><rect x="6" y="19" width="22" height="16" rx="1" transform="rotate(-2 17 27)"/>',
   photoText:'<rect x="4" y="4" width="26" height="22" rx="1.5"/><rect x="4" y="29" width="18" height="2.5" rx="1"/><rect x="4" y="33" width="24" height="2" rx="1" opacity=".6"/>',
   title:'<rect x="6" y="5" width="22" height="5" rx="1"/><circle cx="17" cy="26" r="8" opacity=".7"/>',
@@ -1699,8 +1718,8 @@ function openPicker(slotIdx){
       if(u){u.p.photos[u.j]=mine;tgt.photos[slotIdx]=theirs}else tgt.photos[slotIdx]=slot(id);
       close();changed({insp:true,strip:!!u});
       if(u){commitNow();toastAction(mine?`Swapped with ${u.name}.`:`Moved here from ${u.name}.`,'Undo',undo)}return}
-    if(e.target.closest('[data-add]')){pickFiles(async files=>{const st=$('#pk-st',m);const ids=await importFiles(files,bk.id,(i,n)=>{st.textContent=`Adding photo ${i} of ${n}…`});close();if(!ids.length)return;bk.photoIds.push(...ids);const r=placeNew(bk,tgt,slotIdx,ids);changed({insp:true,strip:true});
-      if(r)toast(r.from===r.to?`${ids.length} photos added: ${r.here} on this page, ${r.more} on new page ${r.from}.`:`${ids.length} photos added: ${r.here} on this page, ${r.more} on new pages ${r.from}–${r.to}.`,5000)})}
+    if(e.target.closest('[data-add]')){pickFiles(async files=>{const st=$('#pk-st',m);const ids=await importFiles(files,bk.id,(i,n)=>{st.textContent=`Adding photo ${i} of ${n}…`},bk.photoIds);close();const dm=dupMsg(ids.dup);if(!ids.length){if(dm)toast(dm,5000);return}bk.photoIds.push(...ids);const r=placeNew(bk,tgt,slotIdx,ids);changed({insp:true,strip:true});
+      if(r)toast((r.from===r.to?`${ids.length} photos added: ${r.here} on this page, ${r.more} on new page ${r.from}.`:`${ids.length} photos added: ${r.here} on this page, ${r.more} on new pages ${r.from}–${r.to}.`)+(dm?' '+dm:''),6000);else if(dm)toast(dm,5000)})}
   });
   m.querySelector('[data-x]').focus();
 }
@@ -2203,7 +2222,7 @@ document.addEventListener('click',async e=>{
     if(act==='shelf'){if(d.photoIds.length&&!confirm('Leave without making the book? The photos you added will be removed.'))return;for(const id of d.photoIds){await store.del('photos',id);await store.del('full',id);photoMeta.delete(id)}return showShelf()}
     const ty=t.closest('[data-type]');if(ty){d.type=ty.dataset.type;const T2=TYPES[d.type];Object.assign(d.cover,{style:T2.style,palette:T2.palette,motif:T2.motif,font:T2.font});return renderWizard()}
     const sz=t.closest('[data-size]');if(sz){d.size=sz.dataset.size;return renderWizard()}
-    if(act==='addphotos')return pickFiles(async files=>{const st=$('#imp');const ids=await importFiles(files,d.id,(i,n)=>{if(st)st.textContent=`Adding photo ${i} of ${n}…`});d.photoIds.push(...ids);renderWizard()});
+    if(act==='addphotos')return pickFiles(async files=>{const st=$('#imp');const ids=await importFiles(files,d.id,(i,n)=>{if(st)st.textContent=`Adding photo ${i} of ${n}…`},d.photoIds);d.photoIds.push(...ids);renderWizard();if(ids.dup)toast(dupMsg(ids.dup).replace('this book','the book'),5000)});
     const rm=t.closest('[data-rmphoto]');if(rm){const id=rm.dataset.rmphoto;d.photoIds=d.photoIds.filter(x=>x!==id);store.del('photos',id);store.del('full',id);return renderWizard()}
     if(act==='wiznext'){if(!d.photoIds.length&&!confirm('No photos yet. Make the book anyway? You can add photos later.'))return;S.wizStep=2;renderWizard();return window.scrollTo(0,0)}
     if(act==='wizback'){S.wizStep=1;return renderWizard()}

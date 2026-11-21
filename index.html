@@ -184,13 +184,16 @@ body.sw-on .zbar{opacity:0!important;pointer-events:none!important}body.sw-on,bo
 .stage .nav{position:absolute;top:50%;transform:translateY(-50%);z-index:10;box-shadow:0 1px 4px rgba(0,0,0,.18)}
 .stage .nav:disabled{opacity:.35;cursor:default}
 .stage .nav.prev{left:12px}.stage .nav.next{right:12px}
-.stage .pos{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:13px;font-weight:600;color:var(--muted)}
+.stage .pos{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:13px;font-weight:600;color:var(--muted);display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px 8px;white-space:nowrap;width:max-content;max-width:96%}
+.stage .pos>span{white-space:normal;text-align:center}
+.pos-add{height:26px;padding:0 12px;border-radius:99px;border:0;background:var(--accent);color:var(--accent-ink);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;flex:0 0 auto}
+.pos-add:hover{filter:brightness(1.07)}
+
 .strip{grid-column:1;grid-row:2;display:flex;gap:10px;align-items:flex-end;overflow-x:auto;padding:12px 16px;border-top:1px solid var(--line);background:var(--bg)}
 .thumb{position:relative;cursor:pointer;touch-action:pan-x;user-select:none;-webkit-user-select:none;border:0;background:none;padding:0;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;color:var(--muted);font-weight:600}
 .thumb .pgbox{box-shadow:0 1px 4px rgba(0,0,0,.18);outline:2px solid transparent;outline-offset:2px}
 .thumb[aria-current="true"] .pgbox{outline-color:var(--accent)}
 .thumb[aria-current="true"]{color:var(--ink)}
-.thumb-add{flex:0 0 auto;align-self:stretch;min-width:70px;border-radius:6px;border:1.5px dashed var(--muted);background:transparent;color:var(--muted);font-weight:600;font-size:13px}
 .insp{grid-column:2;grid-row:1/3;overflow-y:auto;border-left:1px solid var(--line);background:var(--surface);padding:18px 18px 40px}
 .insp h2{font-size:18px;margin-bottom:4px}
 .insp .sub{color:var(--muted);font-size:14px;margin:0 0 6px}
@@ -1417,7 +1420,7 @@ function renderEditor(){
 function renderStage(){
   const st=$('#stage');if(!st)return;const bk=S.book,{W,H}=SIZES[bk.size];
   const n=onePage();const idxs=n?[S.sel]:spreadPages(S.spread);
-  const aw=st.clientWidth-(n?40:140),ah=st.clientHeight-(n?40:70);
+  const aw=st.clientWidth-(n?40:140),ah=st.clientHeight-(n?52:76);
   const cols=idxs.length; // last single page keeps spread size
   const sc=Math.max(.05,Math.min(aw/(W*Math.max(cols,1)),ah/H));
   const P=pal(bk.cover.palette),board=mix(P.bg,'#000000',.3);
@@ -1432,7 +1435,7 @@ function renderStage(){
   const total=spreadCount();
   const label=n?(S.sel===0?'Outside of the book: tap back, spine or front to edit':`Page ${S.sel} of ${bk.pages.length-1}`):(S.spread===0?'Outside of the book: tap back, spine or front to edit':(realPages(idxs).length>1?`Pages ${realPages(idxs).join('–')}`:`Page ${realPages(idxs)[0]}`)+` of ${bk.pages.length-1}`);
   const canPrev=n?S.sel>0:S.spread>0,canNext=n?S.sel<bk.pages.length-1:S.spread<total-1;
-  st.innerHTML=`${boxes}<button class="icon-btn nav prev" data-act="prev" aria-label="Previous" ${canPrev?'':'disabled'}>‹</button><button class="icon-btn nav next" data-act="next" aria-label="Next" ${canNext?'':'disabled'}>›</button><div class="pos">${label}</div>`;
+  st.innerHTML=`${boxes}<button class="icon-btn nav prev" data-act="prev" aria-label="Previous" ${canPrev?'':'disabled'}>‹</button><button class="icon-btn nav next" data-act="next" aria-label="Next" ${canNext?'':'disabled'}>›</button><div class="pos"><span>${label}</span><button class="pos-add" data-act="addpage" aria-label="Add an empty page after page ${Math.max(S.sel,1)}">+ Page after ${Math.max(S.sel,1)}</button></div>`;
   if(!(idxs.length===1&&idxs[0]===0))st.dataset.scale=sc;
   if(S.stickerSel){const el=st.querySelector(`.pgbox.sel .st[data-sid="${S.stickerSel}"]`);el&&el.classList.add('on')}
   drawCapHandles();enableCapEdit();drawPhotoBtns();
@@ -1553,7 +1556,7 @@ document.addEventListener('pointermove',e=>{if(S.view!=='edit'||e.pointerType===
 document.addEventListener('pointerdown',e=>{if(S.view!=='edit'||e.pointerType==='mouse'||!e.target.closest)return;const ph=e.target.closest(PH_SEL);if(ph)zFlash(zKey(ph))},true);
 function renderStrip(){
   const sp=$('#strip');if(!sp)return;const bk=S.book,{W,H}=SIZES[bk.size];const sc=74/H;
-  sp.innerHTML=bk.pages.map((p,i)=>`<div class="thumb" role="button" tabindex="0" data-sel="${i}" aria-current="${i===S.sel}" aria-label="${i?'Page '+i+(pgLocked(i)?'. Locked':'. Drag to move.'):'Cover'+(pgLocked(i)?'. Locked':'')}">${boxHTML(bk,p,sc,'thumb')}<span>${i?i:'Cover'}${pgLocked(i)?`<i class="thumb-lk" title="Locked">${LOCK_SVG}</i>`:''}</span>${i&&!p.quote?`<button class="thumb-x" data-delpage="${i}" aria-label="Delete page ${i}">×</button>`:''}</div>`).join('')+`<button class="thumb-add" data-act="addpage">+ Page</button>`;
+  sp.innerHTML=bk.pages.map((p,i)=>`<div class="thumb" role="button" tabindex="0" data-sel="${i}" aria-current="${i===S.sel}" aria-label="${i?'Page '+i+(pgLocked(i)?'. Locked':'. Drag to move.'):'Cover'+(pgLocked(i)?'. Locked':'')}">${boxHTML(bk,p,sc,'thumb')}<span>${i?i:'Cover'}${pgLocked(i)?`<i class="thumb-lk" title="Locked">${LOCK_SVG}</i>`:''}</span>${i&&!p.quote?`<button class="thumb-x" data-delpage="${i}" aria-label="Delete page ${i}">×</button>`:''}</div>`).join('');
   const cur=sp.querySelector('[aria-current="true"]');if(cur){const a=cur.offsetLeft-sp.offsetLeft,b=a+cur.offsetWidth;if(a<sp.scrollLeft)sp.scrollLeft=a-8;else if(b>sp.scrollLeft+sp.clientWidth)sp.scrollLeft=b-sp.clientWidth+8}
 }
 function refreshThumb(i){const sp=$('#strip');if(!sp)return;const el=sp.querySelector(`[data-sel="${i}"]`);if(!el)return renderStrip();const bk=S.book,{H}=SIZES[bk.size];el.firstElementChild.outerHTML=boxHTML(bk,bk.pages[i],74/H,'thumb')}
@@ -2259,8 +2262,8 @@ document.addEventListener('click',async e=>{
     case 'prev':return stageFlip(-1,()=>{if(onePage())return select(S.sel-1);S.spread=Math.max(0,S.spread-1);return select(S.spread===0?0:realPages(spreadPages(S.spread))[0])});
     case 'next':return stageFlip(1,()=>{if(onePage())return select(S.sel+1);S.spread=Math.min(spreadCount()-1,S.spread+1);return select(realPages(spreadPages(S.spread))[0])});
     case 'addpage':{if(bk.locked)return lockToast('book');const np=newPage('full'),before=bk.pages.slice(),add=a=>{const x=before.slice();x.splice(a,0,np);return keepLocked(before,x)};
-      let r=add(S.sel+1);if(r.err)r=add(before.length);if(r.err)return toast(r.err,3500);setPages(bk,r.pages);const j=bk.pages.indexOf(np),s0=S.sel;touch();select(j);
-      if(j!==s0+1)toast(`New page added as Page ${j}. Locked pages keep their place.`,3500);return}
+      const at=Math.max(S.sel,1);let r=add(at+1);if(r.err)r=add(before.length);if(r.err)return toast(r.err,3500);setPages(bk,r.pages);const j=bk.pages.indexOf(np),s0=S.sel;touch();select(j);
+      if(j!==at+1)toast(`New page added as Page ${j}. Locked pages keep their place.`,3500);else toast(`Empty page added as Page ${j}.`,2200);return}
     case 'undo':return undo();
     case 'redo':return redo();
     case 'addstop':p.stops.push({name:'',date:''});changed({insp:true});$$('#insp [data-stop][data-f="name"]').pop()?.focus();return;

@@ -1011,6 +1011,12 @@ function keepLocked(before,after){const an=lockAnchors(before),n=after.length,ou
     out[s]=u[0];if(u.length===2)out[++s]=u[1]}
   return{pages:out}}
 function setPages(bk,arr){bk.pages.splice(0,bk.pages.length,...arr)}
+/* Moving a page into locked pages: after asking, the locked pages move along (their content stays locked).
+   lockedMove(before,after) returns {moved:[old page numbers]} or {err} when a 2-page photo would end up split or on the wrong side */
+function spreadOk(pages,p){const i=pages.indexOf(p);return i>1&&i%2===0&&pages[i+1]&&pages[i+1].layout==='spreadR'}
+function lockedMove(before,after){const an=lockAnchors(before);
+  for(const p of before)if(p.layout==='spread'&&spreadOk(before,p)&&!spreadOk(after,p))return{err:`This would split the 2-page photo on Pages ${before.indexOf(p)}–${before.indexOf(p)+1}, so the page was not moved.`};
+  const moved=[];for(const[p,i]of an)if(after.indexOf(p)!==i)moved.push(i);return{moved}}
 /* Printers need an even number of inside pages: said right when a page is added or deleted */
 function addEmptyPage(){const bk=S.book;if(!bk)return;if(bk.locked)return lockToast('book');const np=newPage('full'),before=bk.pages.slice(),add=a=>{const x=before.slice();x.splice(a,0,np);return keepLocked(before,x)};
   const at=Math.max(S.sel,1);let r=add(at+1);if(r.err)r=add(before.length);if(r.err)return toast(r.err,3500);setPages(bk,r.pages);const j=bk.pages.indexOf(np);touch();select(j);
@@ -1021,8 +1027,8 @@ function pageList(nums){const a=[...nums].sort((x,y)=>x-y),g=[];a.forEach(v=>{co
 /* Undo/redo never changes a locked page or a locked book */
 function lockBlock(snap,verb){const bk=S.book;if(!bk)return'';if(bk.locked)return`This book is locked, so it can't be ${verb}. Unlock it first.`;let o;try{o=JSON.parse(snap)}catch(e){return''}
   const cl=x=>{if(!x)return'';const c={...x};delete c.locked;return JSON.stringify(c)};
-  for(let i=0;i<bk.pages.length;i++){const p=bk.pages[i];if(!p.locked)continue;const q=p.id?o.pages.find(x=>x.id===p.id):o.pages[i];
-    if(cl(p)!==cl(q)||(q&&o.pages.indexOf(q)!==i)||(i===0&&JSON.stringify([bk.cover,bk.back,bk.spine])!==JSON.stringify([o.cover,o.back,o.spine])))return`${lockName(i)} is locked, so this step can't be ${verb}. Unlock it first.`}return''}
+  for(let i=0;i<bk.pages.length;i++){const p=bk.pages[i];if(!p.locked)continue;const q=(p.id&&o.pages.find(x=>x.id===p.id))||o.pages[i];
+    if(cl(p)!==cl(q)||(i===0&&JSON.stringify([bk.cover,bk.back,bk.spine])!==JSON.stringify([o.cover,o.back,o.spine])))return`${lockName(i)} is locked, so this step can't be ${verb}. Unlock it first.`}return''}
 
 /* Text measuring: uses the real font when loaded, the fallback otherwise, so titles never break mid-word */
 const _mc=document.createElement('canvas').getContext('2d');const _mw=new Map();let fontVer=0;
@@ -1229,7 +1235,7 @@ function spreadDiv(s,half,W,H,q){const src=s&&photoSrc(s.id,q);if(!src)return`<d
   return`<div class="ph" data-span="2" ${half?'data-half="1"':'data-slot="0"'} style="left:${-B}px;top:${-B}px;width:${W+2*B}px;height:${H+2*B}px;background-image:url('${src}');background-size:${size};background-position:${r1(bx-half*W+B)}px ${r1(by+B)}px"></div>`}
 function capOf(p){return Object.assign({x:.06,y:.95,ax:0,ay:100,style:'shadow'},p.cap||{})}
 /* Text boxes belong to the page (page.boxes), on any photo layout: {id,title,sub,x,y,ax,ay,w?,h?,style,align?,ts}. Old books: the full-photo caption becomes the first box. */
-function migrateBoxes(bk){(bk.pages||[]).forEach(p=>{if(!p.boxes)p.boxes=[];const tx=p.text||{};
+function migrateBoxes(bk){(bk.pages||[]).forEach(p=>{if(!p.id)p.id=uid();if(!p.boxes)p.boxes=[];const tx=p.text||{};
   if(p.layout==='full'&&(tx.title||tx.sub)&&!p.boxes.length){p.boxes.push({id:uid(),title:tx.title||'',sub:tx.sub||'',...capOf(p),...(p.align?{align:p.align}:{}),ts:p.ts||1});tx.title='';tx.sub='';delete p.cap;delete p.align;p.ts=1}})}
 function boxById(p,id){return id&&p?(p.boxes||[]).find(b=>b.id===id)||null:null}
 function selBox(){return S.book&&S.capSelId?boxById(curPage(),S.capSelId):null}
@@ -2412,8 +2418,11 @@ document.addEventListener('pointermove',e=>{
   const sp=$('#strip'),r=sp.getBoundingClientRect();if(e.clientX<r.left+40)sp.scrollLeft-=12;else if(e.clientX>r.right-40)sp.scrollLeft+=12;
 });
 function sdEnd(drop){const d=sdrag;if(!d)return;sdrag=null;clearTimeout(d.hold);if(!d.on)return;d.ghost.remove();d.bar.remove();d.th.classList.remove('dragging');stripJustDragged=true;setTimeout(()=>stripJustDragged=false,400);
-  if(!drop||d.j===undefined)return;const bk=S.book;let j=d.j;if(j===d.i||j===d.i+1)return;const before=bk.pages.slice(),x=before.slice(),[pg]=x.splice(d.i,1);if(j>d.i)j--;x.splice(j,0,pg);const kr=keepLocked(before,x);if(kr.err)return toast(kr.err,3500);setPages(bk,kr.pages);j=bk.pages.indexOf(pg);if(j===d.i)return toast('Locked pages keep their place, so this page stays here.',3500);
-  touch();commitNow();S.sel=j;S.spread=spreadOf(j);renderStage();renderStrip();renderInsp();toastAction(`Page moved to ${j}.`+(j!==x.indexOf(pg)?' Locked pages keep their place.':''),'Undo',undo,4000)}
+  if(!drop||d.j===undefined)return;const bk=S.book;let j=d.j;if(j===d.i||j===d.i+1)return;const before=bk.pages.slice(),x=before.slice(),[pg]=x.splice(d.i,1);if(j>d.i)j--;x.splice(j,0,pg);const kr=keepLocked(before,x);let note='';
+  if(kr.err||kr.pages.indexOf(pg)!==j){const lm=lockedMove(before,x);if(lm.err)return toast(lm.err,4000);const n=lm.moved.length,lst=pageList(lm.moved);
+    if(!confirm(`${n>1?'Pages '+lst+' are':'Page '+lst+' is'} locked. Move ${n>1?'them':'it'} to make room?\n\nTheir photos and text stay locked.`))return;
+    setPages(bk,x);note=` Locked ${n>1?'pages '+lst:'page '+lst} moved to make room.`}else setPages(bk,kr.pages);
+  j=bk.pages.indexOf(pg);touch();commitNow();S.sel=j;S.spread=spreadOf(j);renderStage();renderStrip();renderInsp();toastAction(`Page moved to ${j}.`+note,'Undo',undo,note?6000:4000)}
 document.addEventListener('pointerup',()=>sdEnd(true));document.addEventListener('pointercancel',()=>sdEnd(false));
 document.addEventListener('touchmove',e=>{if(sdrag&&sdrag.on)e.preventDefault()},{passive:false});
 document.addEventListener('contextmenu',e=>{if(sdrag)e.preventDefault()});
